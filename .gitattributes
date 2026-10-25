@@ -1,0 +1,4 @@
+* text=auto
+*.bat text eol=crlf
+# Preserve upstream license text verbatim.
+docs/licenses/* -whitespace
