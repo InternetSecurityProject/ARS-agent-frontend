@@ -84,7 +84,13 @@ private fun BottomTabs(selected: PhoneTab, onTab: (PhoneTab) -> Unit) {
 @Composable
 private fun ContactList(tab: PhoneTab, dispatch: (Action) -> Unit, modifier: Modifier) {
     var query by remember(tab) { mutableStateOf("") }
-    val contacts = demoContacts.filter { it.name.contains(query, ignoreCase = true) || formatPhone(it.number).contains(query) }
+    val searchText = query.trim()
+    val numberQuery = searchText.filterNot { it == '-' || it.isWhitespace() }
+    val isNumberQuery = numberQuery.isNotEmpty() && numberQuery.all { it in '0'..'9' }
+    val contacts = demoContacts.filter {
+        it.name.contains(searchText, ignoreCase = true) ||
+            (isNumberQuery && PhoneNumber(it.number).digits.contains(numberQuery))
+    }
     Column(modifier.fillMaxWidth()) {
         Spacer(Modifier.height(12.dp))
         Text(if (tab == PhoneTab.Contacts) "연락처" else "통화", style = MaterialTheme.typography.headlineLarge)

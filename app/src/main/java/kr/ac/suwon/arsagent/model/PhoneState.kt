@@ -139,9 +139,19 @@ fun formatDuration(seconds: Int): String = "%02d:%02d".format(seconds.coerceAtLe
 
 fun formatPhone(raw: String): String {
     val number = PhoneNumber(raw).digits
-    return when {
-        number.length == 11 -> "${number.take(3)}-${number.substring(3, 7)}-${number.takeLast(4)}"
-        number.length == 8 -> "${number.take(4)}-${number.takeLast(4)}"
-        else -> number
+    if (number.any { it !in '0'..'9' }) return number
+    val prefixLength = when {
+        number.startsWith("02") && number.length <= 10 -> 2
+        number.startsWith("0") && number.length <= 11 -> 3
+        listOf("15", "16", "18").any(number::startsWith) && number.length <= 8 -> 4
+        else -> return number
     }
+    if (number.length <= prefixLength) return number
+    val middleLength = when {
+        prefixLength == 4 || number.startsWith("010") || number.startsWith("070") -> 4
+        number.length > prefixLength + 7 -> 4
+        else -> 3
+    }
+    return listOf(number.take(prefixLength), number.drop(prefixLength).take(middleLength),
+        number.drop(prefixLength + middleLength)).filter { it.isNotEmpty() }.joinToString("-")
 }
