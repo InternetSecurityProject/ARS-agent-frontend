@@ -1,6 +1,13 @@
 package kr.ac.suwon.arsagent
 
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import kr.ac.suwon.arsagent.model.*
@@ -63,5 +70,21 @@ class PhoneFlowTest {
         compose.onNodeWithText("종료").performClick()
         compose.onNodeWithTag("call-keypad").assertDoesNotExist()
         compose.onNodeWithText("통화 종료 · 00:18").assertIsDisplayed()
+    }
+
+    @Test fun purposeAndAnswerStayReachableInImeSizedWindow() {
+        val state = mutableStateOf(AppState(screen = Screen.Purpose, number = "131", agent = true))
+        compose.setContent {
+            val density = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(density.density, 1.3f)) {
+                // Represents remaining app space after the soft keyboard opens on a small phone.
+                Box(Modifier.size(360.dp, 320.dp)) { ArsApp(state.value, {}) }
+            }
+        }
+        compose.onNodeWithContentDescription("음성 대신 텍스트 입력").assertIsDisplayed()
+        compose.onNodeWithText("취소").assertIsDisplayed()
+        compose.runOnIdle { state.value = AppState(screen = Screen.Call, number = "131", agent = true, phase = Phase.Answer) }
+        compose.onNodeWithContentDescription("음성 대신 텍스트 입력").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("종료").assertIsDisplayed()
     }
 }

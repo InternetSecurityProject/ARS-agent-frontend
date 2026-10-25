@@ -21,11 +21,15 @@ fun CallScreen(state: AppState, dispatch: (Action) -> Unit) {
         val topSpace = if (maxHeight >= 720.dp) 80.dp else 40.dp
         val secure = state.phase == Phase.Secure || state.phase == Phase.Sending
         val keypad = state.screen == Screen.Call && (secure || state.keypadOpen)
+        val compact = maxHeight < 600.dp
         Column(Modifier.fillMaxSize().padding(horizontal = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Spacer(Modifier.height(topSpace))
-            CallHeader(state)
-            Spacer(Modifier.height(24.dp))
-            when {
+            if (compact) {
+                CompactCallBody(state, dispatch, keypad, Modifier.weight(1f))
+            } else {
+                Spacer(Modifier.height(topSpace))
+                CallHeader(state)
+                Spacer(Modifier.height(24.dp))
+                when {
                 keypad -> CardFreeKeypad(state, dispatch, Modifier.weight(1f))
                 !state.agent && state.screen == Screen.Call -> {
                     Spacer(Modifier.weight(1f))
@@ -40,8 +44,9 @@ fun CallScreen(state: AppState, dispatch: (Action) -> Unit) {
                     else AgentControls(state, dispatch)
                     Spacer(Modifier.height(16.dp))
                 }
+                }
+                if (keypad) Spacer(Modifier.height(16.dp))
             }
-            if (keypad) Spacer(Modifier.height(16.dp))
             if (state.screen == Screen.Ended) {
                 PrimaryTextButton("키패드로 돌아가기", { dispatch(Action.Back) })
                 Spacer(Modifier.height(30.dp))
@@ -53,9 +58,30 @@ fun CallScreen(state: AppState, dispatch: (Action) -> Unit) {
             }
             Spacer(Modifier.height(22.dp))
         }
-        Text("UI 데모 · 실제 통화 아님", color = ArsColors.Secondary, style = MaterialTheme.typography.bodyMedium,
+        Text(if (compact) "${formatPhone(state.number)} · UI 데모" else "UI 데모 · 실제 통화 아님", color = ArsColors.Secondary, style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp))
         if (state.audioMenu && state.screen == Screen.Call) AudioPopover(state, dispatch)
+    }
+}
+
+/** Keyboard/short-window layout: scroll the body, never the terminal action. */
+@Composable
+private fun CompactCallBody(state: AppState, dispatch: (Action) -> Unit, keypad: Boolean, modifier: Modifier) {
+    Column(modifier.fillMaxWidth().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
+        Spacer(Modifier.height(32.dp))
+        when {
+            keypad -> CardFreeKeypad(state, dispatch, Modifier, scrollable = false)
+            state.screen == Screen.Ended -> CallHeader(state)
+            !state.agent -> NormalControls(state, dispatch)
+            else -> {
+                ProgressCard(Modifier.fillMaxWidth(), scrollable = false) { AgentContent(state, dispatch) }
+                if (state.screen == Screen.Call) {
+                    Spacer(Modifier.height(16.dp))
+                    AgentControls(state, dispatch)
+                }
+            }
+        }
+        Spacer(Modifier.height(16.dp))
     }
 }
 
@@ -162,9 +188,10 @@ private fun NormalControls(state: AppState, dispatch: (Action) -> Unit) {
 }
 
 @Composable
-private fun CardFreeKeypad(state: AppState, dispatch: (Action) -> Unit, modifier: Modifier) {
+private fun CardFreeKeypad(state: AppState, dispatch: (Action) -> Unit, modifier: Modifier, scrollable: Boolean = true) {
     val secure = state.phase == Phase.Secure || state.phase == Phase.Sending
-    Column(modifier.fillMaxWidth().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
+    val scrollState = rememberScrollState()
+    Column(modifier.fillMaxWidth().then(if (scrollable) Modifier.verticalScroll(scrollState) else Modifier), horizontalAlignment = Alignment.CenterHorizontally) {
         Text(if (secure) "생년월일 6자리 입력" else "번호를 직접 눌러 주세요", style = MaterialTheme.typography.titleLarge,
             textAlign = TextAlign.Center)
         Spacer(Modifier.height(8.dp))

@@ -80,9 +80,9 @@ data class AppState(
         is Action.Detail -> if (screen == Screen.Home) copy(screen = Screen.Detail, number = action.number) else this
         is Action.Scenario -> if (screen == Screen.Home || screen == Screen.Detail) copy(scenario = action.scenario) else this
         Action.StartAgent -> if ((screen == Screen.Home || screen == Screen.Detail) && PhoneNumber(number).canUseAgent)
-            copy(screen = Screen.Purpose, agent = true, goalDraft = "", goal = "", elapsedSeconds = 0) else this
+            AppState(screen = Screen.Purpose, tab = tab, number = number, agent = true, scenario = scenario) else this
         Action.StartNormal -> if ((screen == Screen.Home || screen == Screen.Detail) && PhoneNumber(number).canCall)
-            copy(screen = Screen.Call, agent = false, phase = Phase.Listening, elapsedSeconds = 0, audioMenu = false, keypadOpen = false) else this
+            AppState(screen = Screen.Call, tab = tab, number = number, phase = Phase.Listening, scenario = scenario) else this
         is Action.GoalChanged -> if (screen == Screen.Purpose) copy(goalDraft = action.text.take(160)) else this
         Action.CommitGoal -> if (screen == Screen.Purpose && goalDraft.isNotBlank())
             copy(screen = Screen.Call, phase = Phase.Dialing, goal = goalDraft.trim(), goalDraft = "",

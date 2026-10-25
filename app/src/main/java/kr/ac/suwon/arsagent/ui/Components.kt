@@ -79,9 +79,11 @@ fun PhoneKeypad(
 }
 
 @Composable
-fun ProgressCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+fun ProgressCard(modifier: Modifier = Modifier, scrollable: Boolean = true, content: @Composable ColumnScope.() -> Unit) {
+    val scrollState = rememberScrollState()
     Column(modifier.shadow(8.dp, RoundedCornerShape(20.dp)).background(Color.White, RoundedCornerShape(20.dp))
-        .padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
+        .padding(16.dp).then(if (scrollable) Modifier.verticalScroll(scrollState) else Modifier),
+        verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
 }
 
 @Composable

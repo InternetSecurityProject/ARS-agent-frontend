@@ -25,23 +25,23 @@
 
 Files: Gradle config, `app/src/main/java/kr/ac/suwon/arsagent/model/PhoneState.kt`, `app/src/test/.../PhoneStateTest.kt`.
 Interfaces: `PhoneNumber` normalization/eligibility; `AppState.reduce(Action): AppState` pure screen/state transitions.
-- [ ] Write tests for 010/non-010, empty/invalid length, goal/answer automatic continuation, secure length/clearing, end reset.
-- [ ] Watch tests fail, implement model, run unit suite.
-- [ ] Generate Gradle wrapper and build clean baseline.
+- [x] Write tests for 010/non-010, empty/invalid length, goal/answer automatic continuation, secure length/clearing, end reset.
+- [x] Watch tests fail, implement model, run unit suite.
+- [x] Generate Gradle wrapper and build clean baseline.
 
 ## Task 2: Figma Compose screens
 
 Files: MainActivity, AppViewModel, theme, components, PhoneScreens, CallScreens, local Figma assets, Compose instrumentation tests.
 Interfaces: screens consume AppState and `(Action) -> Unit`; ViewModel owns cancellation-aware timers.
-- [ ] Add UI tests for keypad routing, cancel, call termination and audio popup.
-- [ ] Implement A/B/C/D screens using shared components and exact downloaded Figma SVGs.
-- [ ] Add a visibly separate demo scenario selector; no backend or device permission prompts.
-- [ ] Run emulator tests and visually compare representative screens to Figma.
+- [x] Add UI tests for keypad routing, cancel, call termination and audio popup.
+- [x] Implement A/B/C/D screens using shared components and exact downloaded Figma SVGs.
+- [x] Add a visibly separate demo scenario selector; no backend or device permission prompts.
+- [x] Run emulator tests and visually compare representative screens to Figma.
 
 ## Task 3: CI and handoff
 
 Files: `.github/workflows/android.yml`, README, docs/status.md.
-- [ ] Add JDK17, Android SDK36, Gradle wrapper validation, lint/test/APK artifact workflow.
-- [ ] Configure optional fixed team signing only on trusted non-PR builds; debug APK fallback clearly documented.
-- [ ] Run full lint/test/assemble, review change set, document implemented vs simulated.
-- [ ] Commit on feature branch. Publish only after user authorizes shared-remote writes.
+- [x] Add JDK17, Android SDK36, Gradle wrapper validation, lint/test/APK artifact workflow.
+- [x] Configure optional fixed team signing only on trusted non-PR builds; debug APK fallback clearly documented.
+- [x] Run full lint/test/assemble, review change set, document implemented vs simulated.
+- [x] Commit on feature branch. Publish only after user authorizes shared-remote writes.

@@ -75,4 +75,15 @@ class PhoneStateTest {
         val call = AppState().reduce(Action.Dial("01012345678")).reduce(Action.StartNormal)
         assertFalse(call.reduce(Action.StartAgent).agent)
     }
+    @Test fun consecutiveCallsResetMuteHoldAndSelection() {
+        val previous = AppState(screen = Screen.Call, number = "131", phase = Phase.Listening,
+            muted = true, held = true, selectedKey = "5")
+            .reduce(Action.End).reduce(Action.Back)
+        val normal = previous.reduce(Action.StartNormal)
+        assertFalse(normal.muted)
+        assertFalse(normal.held)
+        val agent = previous.reduce(Action.StartAgent).reduce(Action.GoalChanged("수원 날씨"))
+            .reduce(Action.CommitGoal)
+        assertEquals("1", agent.selectedKey)
+    }
 }
