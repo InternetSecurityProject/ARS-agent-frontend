@@ -55,6 +55,21 @@ class PhoneFlowTest {
         compose.onNodeWithText("휴대전화").assertDoesNotExist()
     }
 
+    @Test fun agentControlsAreGroupedAndCenteredAboveEndButton() {
+        compose.setContent { ArsApp(AppState(screen = Screen.Call, agent = true, phase = Phase.Selecting), {}) }
+        val audio = compose.onNodeWithText("ARS 소리 켜기").getUnclippedBoundsInRoot()
+        val keypad = compose.onNodeWithText("키패드").getUnclippedBoundsInRoot()
+        val route = compose.onNodeWithText("오디오").getUnclippedBoundsInRoot()
+        val end = compose.onNodeWithText("종료").getUnclippedBoundsInRoot()
+        val leftCenter = (audio.left + audio.right) / 2
+        val center = (keypad.left + keypad.right) / 2
+        val rightCenter = (route.left + route.right) / 2
+        assertEquals("Agent controls should have a compact center pitch", 104f, (center - leftCenter).value, .5f)
+        assertEquals("Agent controls should be symmetric", 104f, (rightCenter - center).value, .5f)
+        assertEquals("Middle control should align with end action", ((end.left + end.right) / 2).value, center.value, .5f)
+        compose.onNodeWithText("종료").assertIsDisplayed()
+    }
+
     @Test fun endCallShowsDurationAndReturnAction() {
         val state = mutableStateOf(AppState(screen = Screen.Call, elapsedSeconds = 18))
         compose.setContent { ArsApp(state.value) { state.value = state.value.reduce(it) } }

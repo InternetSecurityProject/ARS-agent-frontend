@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- UI demo: no dialer role, microphone, contacts, call log or internet permission. -->
+    <!-- Network client is prepared but is not connected to the UI demo. No dialer/mic/contact permissions. -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <application android:allowBackup="false" android:label="ARS Agent 데모"
         android:icon="@drawable/ic_launcher" android:supportsRtl="true"
         android:theme="@style/Theme.ArsAgent">

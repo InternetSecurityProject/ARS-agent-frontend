@@ -58,8 +58,10 @@ fun PhoneKeypad(
     onKey: (Char) -> Unit, modifier: Modifier = Modifier, compact: Boolean = false,
     enabled: Boolean = true,
 ) {
-    val size = if (compact) 64.dp else 72.dp
-    Column(modifier.widthIn(max = 280.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 16.dp)) {
+    // App-specific phone grid, exceeding Android's 48dp touch-target / 8dp spacing minimum.
+    val size = 72.dp
+    val keypadWidth = 280.dp
+    Column(modifier.widthIn(max = keypadWidth).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(24.dp)) {
         listOf("123", "456", "789", "*0#").forEach { digits ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 digits.forEach { digit ->
@@ -69,7 +71,7 @@ fun PhoneKeypad(
                         .semantics { contentDescription = "키 $digit" },
                         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                         Text(digit.toString(), fontFamily = androidx.compose.ui.text.font.FontFamily.SansSerif,
-                            fontSize = if (compact) 28.sp else 32.sp, lineHeight = if (compact) 32.sp else 36.sp)
+                            fontSize = 32.sp, lineHeight = 36.sp)
                         Text(letters[digit] ?: "", fontSize = 10.sp, lineHeight = 12.sp, modifier = Modifier.heightIn(min = 12.dp))
                     }
                 }

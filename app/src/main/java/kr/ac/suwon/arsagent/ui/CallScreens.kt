@@ -118,16 +118,16 @@ private fun AgentContent(state: AppState, dispatch: (Action) -> Unit) {
         }
         Phase.Listening -> {
             CardEyebrow("ARS 안내")
-            Text("“단기예보는 1번,\n현재 날씨는 3번…”", fontSize = 17.sp, lineHeight = 28.sp)
+            Text("“단기예보는 1번, 현재 날씨는 3번…”", fontSize = 17.sp, lineHeight = 28.sp)
         }
         Phase.Selecting -> {
             CardEyebrow("이동 경로")
             val label = when (state.selectedKey) { "3" -> "현재 날씨"; "5" -> "중기예보"; else -> "단기예보" }
-            Text("경기 지역 → 수원\n→ $label (${state.selectedKey}번)", fontSize = 17.sp, lineHeight = 28.sp)
+            Text("경기 지역 → 수원 → $label (${state.selectedKey}번)", fontSize = 17.sp, lineHeight = 28.sp)
         }
         Phase.ListeningResult -> {
             CardEyebrow("기관 안내")
-            Text("“오후에는 구름이 많고\n한때 비가 옵니다.\n강수확률은 20~60%입니다.”", fontSize = 17.sp, lineHeight = 28.sp)
+            Text("“오후에는 구름이 많고 한때 비가 옵니다. 강수확률은 20~60%입니다.”", fontSize = 17.sp, lineHeight = 28.sp)
         }
         Phase.Done -> {
             Text("오늘 오후, 비가 올 수 있어요", style = MaterialTheme.typography.titleLarge)
@@ -148,7 +148,7 @@ private fun AgentContent(state: AppState, dispatch: (Action) -> Unit) {
             Text("어느 지역의 날씨인가요?", style = MaterialTheme.typography.titleLarge)
             VoiceInput(state.answerDraft, "지역을 말씀해 주세요", { dispatch(Action.AnswerChanged(it)) },
                 { dispatch(Action.AnswerChanged("수원시 날씨가 궁금해요")) })
-            Text("답변을 듣고 있어요.\n내용이 확인되면 자동으로 진행해요.", color = ArsColors.Secondary,
+            Text("답변을 듣고 있어요. 내용이 확인되면 자동으로 진행해요.", color = ArsColors.Secondary,
                 style = MaterialTheme.typography.bodyMedium)
         }
         Phase.WaitingAgent -> {
@@ -164,11 +164,12 @@ private fun CardEyebrow(text: String) { Text(text, style = MaterialTheme.typogra
 
 @Composable
 private fun AgentControls(state: AppState, dispatch: (Action) -> Unit) {
-    Row(Modifier.fillMaxWidth().heightIn(min = 88.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+    Row(Modifier.widthIn(max = 304.dp).fillMaxWidth().heightIn(min = 88.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)) {
         RoundAction(if (state.audioOn) "ARS 소리 끄기" else "ARS 소리 켜기", "agent_blue",
-            { dispatch(Action.ToggleAudio) }, enabled = state.phase != Phase.Dialing)
-        RoundAction("키패드", "keypad", { dispatch(Action.OpenKeypad) }, enabled = state.phase != Phase.Dialing)
-        RoundAction("오디오", "speaker", { dispatch(Action.ToggleAudioMenu) })
+            { dispatch(Action.ToggleAudio) }, modifier = Modifier.weight(1f), enabled = state.phase != Phase.Dialing)
+        RoundAction("키패드", "keypad", { dispatch(Action.OpenKeypad) }, modifier = Modifier.weight(1f), enabled = state.phase != Phase.Dialing)
+        RoundAction("오디오", "speaker", { dispatch(Action.ToggleAudioMenu) }, modifier = Modifier.weight(1f))
     }
 }
 
@@ -195,7 +196,7 @@ private fun CardFreeKeypad(state: AppState, dispatch: (Action) -> Unit, modifier
         Text(if (secure) "생년월일 6자리 입력" else "번호를 직접 눌러 주세요", style = MaterialTheme.typography.titleLarge,
             textAlign = TextAlign.Center)
         Spacer(Modifier.height(8.dp))
-        Text(if (secure) "6자리 입력 후 자동으로 전송돼요.\n전송 후 입력값은 폐기해요." else "누른 번호가 바로 전송돼요.\nAI는 입력 후 10초간 기다려요.",
+        Text(if (secure) "6자리 입력 후 자동으로 전송돼요. 전송 후 입력값은 폐기해요." else "누른 번호가 바로 전송돼요. AI는 입력 후 10초간 기다려요.",
             style = MaterialTheme.typography.bodyMedium, color = ArsColors.Secondary, textAlign = TextAlign.Center)
         Spacer(Modifier.height(8.dp))
         Box(Modifier.fillMaxWidth().heightIn(min = 44.dp), contentAlignment = Alignment.Center) {

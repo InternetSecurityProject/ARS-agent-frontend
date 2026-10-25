@@ -4,6 +4,8 @@
 
 > 현재는 **UI 데모**입니다. 실제 전화 발신, 음성 인식, 오디오 재생, 연락처/통화기록 조회, 백엔드 통신은 하지 않습니다. 모든 번호·기록·날씨는 예시입니다. 실제 개인정보를 입력하지 마세요.
 
+API v0.3 **통신 기반과 로컬 모의 서버 테스트**는 준비되어 있지만 화면에 연결하지 않았습니다. 서버 주소·앱 키도 기본 설정하지 않았으며 기존 데모/화면 미리보기는 그대로입니다. [연동 가이드](docs/api-integration.md)를 참고하세요.
+
 ## 실행
 
 - Android Studio, Android SDK 36 / Build Tools 35, JDK 17 또는 21.
@@ -27,10 +29,19 @@ APK: `app/build/outputs/apk/debug/app-debug.apk`.
 5. 민감정보 화면은 데모 6자리 입력 완료 후 즉시 폐기. 수동 키패드는 키를 바로 반영합니다.
 6. 오디오·음소거·보류는 UI 상태만 변경됩니다. 실제 오디오 경로 변경이 아닙니다.
 
+## 원하는 화면 바로 보기 (debug APK)
+
+- 앱 목록에서 **ARS 화면 미리보기**를 열고 상단 A(일반 전화) / B(Agent 진행) / C(추가 입력) / D(상담원 연결) 탭에서 화면을 선택합니다. 목록을 다시 열면 현재 화면의 그룹이 선택됩니다.
+- 화면 위 **화면 선택** 또는 Android 뒤로가기로 다시 목록을 엽니다.
+- 010/070 키패드·연락처/통화 상세, 일반 통화/종료, Agent 진행·입력·오디오·상담원 대기를 바로 확인할 수 있습니다.
+- 자동 전환·시간 흐름·입력/통화 버튼이 멈춘 **고정 미리보기**입니다. 기존 **ARS Agent 데모**는 이전처럼 동작합니다.
+- 미리보기 런처와 예시 상태는 `src/debug/`에만 포함되며 release APK에는 들어가지 않습니다.
+
 ## 구조
 
 ```
 app/src/main/java/kr/ac/suwon/arsagent/
+  data/api/    독립 REST/이벤트 WS 클라이언트, 요청·응답 모델 (UI 미연결)
   model/       순수 Kotlin 상태·전환 규칙·예시 데이터
   ui/          화면, 공통 컨트롤, 테마
   AppViewModel 데모 타이밍과 취소 처리
@@ -39,7 +50,7 @@ app/src/main/java/kr/ac/suwon/arsagent/
 - [Figma](https://www.figma.com/design/ul4FvS9IStRhfdoSzm70Ri/ARS-Agent): A/B/C/D01, 현재 C04는 수동 키패드.
 - 원본 SVG는 `assets/figma/`. 네트워크로 이미지를 불러오지 않습니다.
 - Noto Sans KR은 SIL OFL로 포함. SF Pro와 iOS 시스템 상태 표시줄은 재배포/모사하지 않습니다.
-- 백엔드 연동 시 `model`의 이벤트/상태 갱신을 REST·WebSocket 어댑터에서 수행하도록 분리했습니다.
+- 다음 화면 연동 단계에서 `data/api`의 서버 응답·이벤트를 `model`에 반영합니다. 현재 `AppViewModel`은 기존 데모 그대로입니다.
 
 ## GitHub Actions / APK 배포
 
