@@ -113,6 +113,7 @@ data class AppState(
             audioMenu -> copy(audioMenu = false)
             screen == Screen.Call && keypadOpen -> copy(keypadOpen = false)
             screen == Screen.Call -> this
+            screen == Screen.Detail -> copy(screen = Screen.Home)
             else -> copy(screen = Screen.Home, tab = PhoneTab.Keypad, goalDraft = "", answerDraft = "", secureEntry = SecureEntry.Empty, audioMenu = false)
         }
         Action.End -> if (screen == Screen.Call) copy(screen = Screen.Ended, secureEntry = SecureEntry.Empty,

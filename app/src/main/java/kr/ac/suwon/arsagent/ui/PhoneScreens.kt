@@ -131,7 +131,7 @@ private fun ContactList(tab: PhoneTab, dispatch: (Action) -> Unit, modifier: Mod
 @Composable
 private fun ContactDetail(state: AppState, dispatch: (Action) -> Unit, modifier: Modifier) {
     Column(modifier.fillMaxWidth().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
-        TextButton({ dispatch(Action.Tab(state.tab)) }, Modifier.align(Alignment.Start)) {
+        TextButton({ dispatch(Action.Back) }, Modifier.align(Alignment.Start)) {
             Text(if (state.tab == PhoneTab.Calls) "‹ 통화" else "‹ 연락처")
         }
         Spacer(Modifier.height(24.dp))
