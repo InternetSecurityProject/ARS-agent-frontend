@@ -45,14 +45,25 @@ class PhoneStateTest {
         assertEquals(Phase.Answer, s.phase)
         assertEquals(Phase.Selecting, s.reduce(Action.CommitAnswer).phase)
     }
-    @Test fun secureEntryClearsImmediatelyAtExpectedLength() {
+    @Test fun secureEntryWaitsForExplicitCompletionThenClears() {
         var s = AppState(screen = Screen.Call, agent = true, phase = Phase.Secure)
         "12345".forEach { s = s.reduce(Action.Key(it)) }
         assertEquals(5, s.secureEntry.count)
         assertFalse(s.toString().contains("12345"))
         s = s.reduce(Action.Key('6'))
+        assertEquals(Phase.Secure, s.phase)
+        assertEquals(6, s.secureEntry.count)
+        s = s.reduce(Action.CommitSecure)
         assertEquals(Phase.Sending, s.phase)
         assertEquals(0, s.secureEntry.count)
+    }
+    @Test fun secureCompletionRequiresSixDemoDigitsAndCurrentInputPhase() {
+        var s = AppState(screen = Screen.Call, agent = true, phase = Phase.Secure)
+        assertEquals(s, s.reduce(Action.CommitSecure))
+        s = s.reduce(Action.Key('1'))
+        assertEquals(s, s.reduce(Action.CommitSecure))
+        val ended = s.reduce(Action.End)
+        assertEquals(ended, ended.reduce(Action.CommitSecure))
     }
     @Test fun secureInputRejectsNonDigitAndSupportsDelete() {
         val s = AppState(screen = Screen.Call, phase = Phase.Secure)

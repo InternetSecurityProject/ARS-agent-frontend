@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.*
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
@@ -16,20 +17,43 @@ import androidx.compose.ui.unit.*
 import kr.ac.suwon.arsagent.model.*
 
 @Composable
-fun CallScreen(state: AppState, dispatch: (Action) -> Unit) {
+fun CallScreen(state: AppState, dispatch: (Action) -> Unit, serverData: BCallData? = null, choiceInput: CandidateChoiceInput? = null, secureInput: SecureInputInput? = null) {
+    // Keep receipts above responsive/content branches: resizing or a temporary missing request
+    // must not make an already dispatched action eligible again. The host keys this screen per session.
+    var choiceReceipts by rememberSaveable { mutableStateOf(emptyList<String>()) }
+    val requestId = serverData?.pendingRequest?.requestId
+    val choiceSubmitted = requestId != null && "${choiceInput?.retryVersion ?: 0}:$requestId" in choiceReceipts
+    val guardedChoiceInput = choiceInput?.let { owner ->
+        owner.copy(onSelect = { action ->
+            val receipt = "${owner.retryVersion}:${action.requestId}"
+            if (receipt !in choiceReceipts) {
+                choiceReceipts = choiceReceipts + receipt
+                owner.onSelect(action)
+            }
+        })
+    }
+    var secureReceipts by rememberSaveable { mutableStateOf(emptyList<String>()) }
+    val secureRequest = serverData?.pendingRequest?.takeIf { it.kind == "secure_input" }
+    val secureToken = "${secureInput?.retryVersion ?: 0}:${secureRequest?.requestId}"
+    val secureSubmitted = secureToken in secureReceipts
+    val secureCanSend = secureInput?.canSend == true && serverData?.status == "awaiting_user" && !secureSubmitted
+    val secureForm = rememberServerSecureForm(secureRequest, secureInput?.retryVersion ?: 0, secureCanSend)
+    val secureContent = if (secureRequest != null && secureForm != null)
+        ServerSecureContent(secureRequest, secureForm, secureCanSend && secureForm.usable(), secureSubmitted) else null
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val topSpace = if (maxHeight >= 720.dp) 80.dp else 40.dp
         val secure = state.phase == Phase.Secure || state.phase == Phase.Sending
-        val keypad = state.screen == Screen.Call && (secure || state.keypadOpen)
+        val keypad = state.screen == Screen.Call && (secure || state.keypadOpen || secureContent != null)
         val compact = maxHeight < 600.dp
         Column(Modifier.fillMaxSize().padding(horizontal = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             if (compact) {
-                CompactCallBody(state, dispatch, keypad, Modifier.weight(1f))
+                CompactCallBody(state, dispatch, keypad, Modifier.weight(1f), serverData, guardedChoiceInput, choiceSubmitted, secureContent)
             } else {
                 Spacer(Modifier.height(topSpace))
-                CallHeader(state)
+                CallHeader(state, serverData)
                 Spacer(Modifier.height(24.dp))
                 when {
+                secureContent != null -> ServerSecureKeypad(secureContent, Modifier.weight(1f))
                 keypad -> CardFreeKeypad(state, dispatch, Modifier.weight(1f))
                 !state.agent && state.screen == Screen.Call -> {
                     Spacer(Modifier.weight(1f))
@@ -38,46 +62,68 @@ fun CallScreen(state: AppState, dispatch: (Action) -> Unit) {
                 }
                 state.screen == Screen.Ended -> Spacer(Modifier.weight(1f))
                 else -> {
-                    ProgressCard(Modifier.fillMaxWidth().weight(1f)) { AgentContent(state, dispatch) }
+                    ProgressCard(Modifier.fillMaxWidth().weight(1f)) { AgentContent(state, dispatch, serverData, guardedChoiceInput, choiceSubmitted) }
                     Spacer(Modifier.height(20.dp))
                     if (state.screen == Screen.Purpose) Spacer(Modifier.height(88.dp))
-                    else AgentControls(state, dispatch)
+                    else if (serverData?.isEnded != true) AgentControls(state, dispatch, interactive = serverData == null)
                     Spacer(Modifier.height(16.dp))
                 }
                 }
                 if (keypad) Spacer(Modifier.height(16.dp))
             }
-            if (state.screen == Screen.Ended) {
+            if (secureContent != null) {
+                Button({
+                    if (secureCanSend && secureToken !in secureReceipts) {
+                        secureForm?.submit()?.let { action ->
+                            secureReceipts = secureReceipts + secureToken
+                            secureInput?.onSubmit?.invoke(action)
+                        }
+                    }
+                }, Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = RoundedCornerShape(16.dp),
+                    enabled = secureContent.ready && secureContent.form.count > 0) { Text("입력 완료") }
+                Spacer(Modifier.height(12.dp))
+            } else if (secure && state.screen == Screen.Call && serverData == null) {
+                Button({ dispatch(Action.CommitSecure) }, Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = RoundedCornerShape(16.dp),
+                    enabled = state.phase == Phase.Secure && state.secureEntry.count == 6) { Text("입력 완료") }
+                Spacer(Modifier.height(12.dp))
+            }
+            if (state.screen == Screen.Ended || serverData?.isEnded == true) {
                 PrimaryTextButton("키패드로 돌아가기", { dispatch(Action.Back) })
                 Spacer(Modifier.height(30.dp))
             } else {
                 Box(Modifier.heightIn(min = 104.dp), contentAlignment = Alignment.TopCenter) {
                     if (state.screen == Screen.Purpose) RoundAction("취소", "close", { dispatch(Action.Back) }, size = 72.dp)
-                    else RoundAction("종료", "end_call", { dispatch(Action.End) }, size = 72.dp, iconSize = 42.dp, color = ArsColors.Red)
+                    else RoundAction("종료", "end_call", { secureForm?.stop(); dispatch(Action.End) }, size = 72.dp, iconSize = 42.dp, color = ArsColors.Red)
                 }
             }
             Spacer(Modifier.height(22.dp))
         }
-        Text(if (compact) "${formatPhone(state.number)} · UI 데모" else "UI 데모 · 실제 통화 아님", color = ArsColors.Secondary, style = MaterialTheme.typography.bodyMedium,
+        Text(if (serverData != null) "서버 데이터 · 오디오 미연결"
+            else if (compact) "${formatPhone(state.number)} · UI 데모" else "UI 데모 · 실제 통화 아님", color = ArsColors.Secondary, style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp))
-        if (state.audioMenu && state.screen == Screen.Call) AudioPopover(state, dispatch)
+        if (serverData == null && state.audioMenu && state.screen == Screen.Call) AudioPopover(state, dispatch)
     }
 }
 
 /** Keyboard/short-window layout: scroll the body, never the terminal action. */
 @Composable
-private fun CompactCallBody(state: AppState, dispatch: (Action) -> Unit, keypad: Boolean, modifier: Modifier) {
+private fun CompactCallBody(state: AppState, dispatch: (Action) -> Unit, keypad: Boolean, modifier: Modifier, serverData: BCallData? = null, choiceInput: CandidateChoiceInput? = null, choiceSubmitted: Boolean = false, secureContent: ServerSecureContent? = null) {
     Column(modifier.fillMaxWidth().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
         Spacer(Modifier.height(32.dp))
+        if (serverData != null) {
+            CallHeader(state, serverData)
+            Spacer(Modifier.height(16.dp))
+        }
         when {
+            secureContent != null -> ServerSecureKeypad(secureContent, Modifier, scrollable = false)
             keypad -> CardFreeKeypad(state, dispatch, Modifier, scrollable = false)
             state.screen == Screen.Ended -> CallHeader(state)
             !state.agent -> NormalControls(state, dispatch)
             else -> {
-                ProgressCard(Modifier.fillMaxWidth(), scrollable = false) { AgentContent(state, dispatch) }
-                if (state.screen == Screen.Call) {
+                ProgressCard(Modifier.fillMaxWidth(), scrollable = false) { AgentContent(state, dispatch, serverData, choiceInput, choiceSubmitted) }
+                if (state.screen == Screen.Call && serverData?.isEnded != true) {
                     Spacer(Modifier.height(16.dp))
-                    AgentControls(state, dispatch)
+                    AgentControls(state, dispatch, interactive = serverData == null)
                 }
             }
         }
@@ -86,11 +132,13 @@ private fun CompactCallBody(state: AppState, dispatch: (Action) -> Unit, keypad:
 }
 
 @Composable
-private fun CallHeader(state: AppState) {
+private fun CallHeader(state: AppState, serverData: BCallData? = null) {
     Column(Modifier.fillMaxWidth().heightIn(min = 76.dp), horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(formatPhone(state.number).ifEmpty { "131" }, style = MaterialTheme.typography.headlineLarge, textAlign = TextAlign.Center)
+        Text(formatPhone(state.number).ifEmpty { if (serverData == null) "131" else "번호 확인 전" }, style = MaterialTheme.typography.headlineLarge, textAlign = TextAlign.Center)
         val subtitle = when {
+            serverData?.isEnded == true -> serverData.durationSeconds?.let { "통화 종료 · ${formatDuration(it)}" } ?: "통화 종료"
+            serverData != null -> if (serverData.status == "dialing") "${contactName(state.number)} · 연결 중" else contactName(state.number)
             state.screen == Screen.Purpose -> contactName(state.number)
             state.screen == Screen.Ended -> "통화 종료 · ${formatDuration(state.elapsedSeconds)}"
             state.phase == Phase.Dialing -> "${contactName(state.number)} · 연결 중"
@@ -102,7 +150,11 @@ private fun CallHeader(state: AppState) {
 }
 
 @Composable
-private fun AgentContent(state: AppState, dispatch: (Action) -> Unit) {
+private fun AgentContent(state: AppState, dispatch: (Action) -> Unit, serverData: BCallData? = null, choiceInput: CandidateChoiceInput? = null, choiceSubmitted: Boolean = false) {
+    if (serverData != null) {
+        BServerContent(serverData, choiceInput, choiceSubmitted)
+        return
+    }
     if (state.screen == Screen.Purpose) {
         Text("어떤 일을 도와드릴까요?", style = MaterialTheme.typography.titleLarge)
         Spacer(Modifier.height(4.dp))
@@ -163,13 +215,13 @@ private fun AgentContent(state: AppState, dispatch: (Action) -> Unit) {
 private fun CardEyebrow(text: String) { Text(text, style = MaterialTheme.typography.labelMedium, color = ArsColors.Blue) }
 
 @Composable
-private fun AgentControls(state: AppState, dispatch: (Action) -> Unit) {
+private fun AgentControls(state: AppState, dispatch: (Action) -> Unit, interactive: Boolean = true) {
     Row(Modifier.widthIn(max = 304.dp).fillMaxWidth().heightIn(min = 88.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)) {
         RoundAction(if (state.audioOn) "ARS 소리 끄기" else "ARS 소리 켜기", "agent_blue",
-            { dispatch(Action.ToggleAudio) }, modifier = Modifier.weight(1f), enabled = state.phase != Phase.Dialing)
-        RoundAction("키패드", "keypad", { dispatch(Action.OpenKeypad) }, modifier = Modifier.weight(1f), enabled = state.phase != Phase.Dialing)
-        RoundAction("오디오", "speaker", { dispatch(Action.ToggleAudioMenu) }, modifier = Modifier.weight(1f))
+            { dispatch(Action.ToggleAudio) }, modifier = Modifier.weight(1f), enabled = interactive && state.phase != Phase.Dialing)
+        RoundAction("키패드", "keypad", { dispatch(Action.OpenKeypad) }, modifier = Modifier.weight(1f), enabled = interactive && state.phase != Phase.Dialing)
+        RoundAction("오디오", "speaker", { dispatch(Action.ToggleAudioMenu) }, modifier = Modifier.weight(1f), enabled = interactive)
     }
 }
 
@@ -196,7 +248,7 @@ private fun CardFreeKeypad(state: AppState, dispatch: (Action) -> Unit, modifier
         Text(if (secure) "생년월일 6자리 입력" else "번호를 직접 눌러 주세요", style = MaterialTheme.typography.titleLarge,
             textAlign = TextAlign.Center)
         Spacer(Modifier.height(8.dp))
-        Text(if (secure) "6자리 입력 후 자동으로 전송돼요. 전송 후 입력값은 폐기해요." else "누른 번호가 바로 전송돼요. AI는 입력 후 10초간 기다려요.",
+        Text(if (secure) "6자리 입력 후 ‘입력 완료’를 눌러 주세요." else "누른 번호가 바로 전송돼요. AI는 입력 후 10초간 기다려요.",
             style = MaterialTheme.typography.bodyMedium, color = ArsColors.Secondary, textAlign = TextAlign.Center)
         Spacer(Modifier.height(8.dp))
         Box(Modifier.fillMaxWidth().heightIn(min = 44.dp), contentAlignment = Alignment.Center) {
@@ -205,7 +257,8 @@ private fun CardFreeKeypad(state: AppState, dispatch: (Action) -> Unit, modifier
             if (secure) TextButton({ dispatch(Action.DeleteSecure) }, Modifier.align(Alignment.CenterEnd), enabled = state.phase == Phase.Secure) { Text("⌫") }
         }
         Spacer(Modifier.height(16.dp))
-        PhoneKeypad({ dispatch(Action.Key(it)) }, Modifier.testTag("call-keypad"), compact = true, enabled = state.phase != Phase.Sending)
+        PhoneKeypad({ dispatch(Action.Key(it)) }, Modifier.testTag("call-keypad"), compact = true, enabled = state.phase != Phase.Sending,
+            rowSpacing = if (secure) 12.dp else 24.dp)
     }
 }
 

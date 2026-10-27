@@ -34,12 +34,17 @@ class PhoneFlowTest {
         compose.onNodeWithText("ARS Agent 전화").assertIsDisplayed()
     }
 
-    @Test fun keypadIsOutsideCardAndSixDigitsContinueWithoutConfirmButton() {
+    @Test fun keypadStaysOutsideCardAndSixDigitsWaitForCompletionButton() {
         val state = mutableStateOf(AppState(screen = Screen.Call, agent = true, phase = Phase.Secure))
         compose.setContent { ArsApp(state.value) { state.value = state.value.reduce(it) } }
         compose.onNodeWithTag("call-keypad").assertIsDisplayed()
-        compose.onNodeWithText("입력 완료").assertDoesNotExist()
+        compose.onNodeWithText("입력 완료").assertIsDisplayed().assertIsNotEnabled()
         "123456".forEach { compose.onNodeWithContentDescription("키 $it").performClick() }
+        compose.runOnIdle {
+            assertEquals(6, state.value.secureEntry.count)
+            assertEquals(Phase.Secure, state.value.phase)
+        }
+        compose.onNodeWithText("입력 완료").performClick()
         compose.runOnIdle {
             assertEquals(0, state.value.secureEntry.count)
             assertEquals(Phase.Sending, state.value.phase)

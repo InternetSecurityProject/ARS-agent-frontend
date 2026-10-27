@@ -21,10 +21,14 @@ import androidx.compose.ui.unit.dp
 import kr.ac.suwon.arsagent.data.api.UserRequest
 import kr.ac.suwon.arsagent.model.PhoneNumber
 import kr.ac.suwon.arsagent.model.formatDuration
+import kr.ac.suwon.arsagent.model.formatPhone
 import kr.ac.suwon.arsagent.ui.*
+import kr.ac.suwon.arsagent.servertest.voice.ServerVoiceUi
+import kr.ac.suwon.arsagent.servertest.voice.ServerVoicePanel
 
 @Composable
-fun ServerTestScreen(state: ServerTestState, dispatch: (ServerTestCommand) -> Unit, onExit: () -> Unit) {
+fun ServerTestScreen(state: ServerTestState, dispatch: (ServerTestCommand) -> Unit, onExit: () -> Unit,
+    voice: ServerVoiceUi? = null) {
     var confirmExit by remember { mutableStateOf(false) }
     val exit = {
         if (state.active || state.starting || state.creationUncertain) confirmExit = true else onExit()
@@ -39,12 +43,17 @@ fun ServerTestScreen(state: ServerTestState, dispatch: (ServerTestCommand) -> Un
             }
             Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text("시뮬레이터 전용 · 실제 음성 통화 아님", color = ArsColors.Secondary)
+                Text(when (ServerTestMode.fromBackend(state.health?.backend)) {
+                    ServerTestMode.Sim -> "시뮬레이터 · 실제 전화가 걸리지 않아요"
+                    ServerTestMode.RealCall -> "실통화 서버 · 발신 전 확인이 필요해요"
+                    null -> "연결 확인 후 통화 모드를 확인해 주세요"
+                }, color = ArsColors.Secondary)
                 Text(SERVER_TEST_URL, style = MaterialTheme.typography.bodyMedium)
                 state.error?.let { message ->
                     Section("확인이 필요해요") { Text(message, color = ArsColors.Red) }
                 }
-                if (!state.hasSession) SetupForm(state, dispatch)
+                voice?.let { ServerVoicePanel(state, it) }
+                if (!state.hasSession) SetupForm(state, dispatch, voice)
                 else SessionContent(state, dispatch)
                 Spacer(Modifier.height(12.dp))
             }
@@ -97,13 +106,23 @@ fun ServerTestScreen(state: ServerTestState, dispatch: (ServerTestCommand) -> Un
 }
 
 @Composable
-private fun SetupForm(state: ServerTestState, dispatch: (ServerTestCommand) -> Unit) {
+private fun SetupForm(state: ServerTestState, dispatch: (ServerTestCommand) -> Unit, voice: ServerVoiceUi?) {
     // Deliberately NOT rememberSaveable: never place credentials in Android saved instance state.
     var key by remember { mutableStateOf("") }
-    var phone by remember { mutableStateOf("07000000000") }
+    val mode = ServerTestMode.fromBackend(state.health?.backend)
+    var phone by remember(state.health?.backend) {
+        mutableStateOf(if (mode == ServerTestMode.Sim) "07000000000" else "")
+    }
     var goal by remember { mutableStateOf("") }
     var examplesOpen by remember { mutableStateOf(false) }
+    var pendingCall by remember { mutableStateOf<PendingRealCall?>(null) }
     val editable = !state.starting && !state.checking && !state.creationUncertain
+    val ready = editable && mode != null && state.health?.activeSession == null &&
+        key.isNotBlank() && PhoneNumber(phone).canCall && goal.isNotBlank()
+    val pendingValid = ready && mode == ServerTestMode.RealCall && pendingCall?.let {
+        it.phone == PhoneNumber(phone).digits && it.goal == goal.trim()
+    } == true
+    LaunchedEffect(pendingValid) { if (!pendingValid) pendingCall = null }
     Section("서버 연결") {
         state.health?.let {
             Text("연결 확인 완료 · ${it.backend}")
@@ -125,6 +144,10 @@ private fun SetupForm(state: ServerTestState, dispatch: (ServerTestCommand) -> U
             enabled = editable, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone))
         OutlinedTextField(goal, { goal = it.take(500) }, Modifier.fillMaxWidth().testTag("server-goal"),
             label = { Text("원하는 업무") }, enabled = editable, minLines = 2)
+        voice?.let {
+            OutlinedButton({ it.goal { recognized -> if (editable) goal = recognized.take(500) } },
+                Modifier.fillMaxWidth(), enabled = editable && it.status.enabled) { Text("목적 말하기") }
+        }
         if (!state.health?.mockGoals.isNullOrEmpty()) {
             Box {
                 TextButton({ examplesOpen = true }, enabled = editable) { Text("서버 예시 목적 선택") }
@@ -135,19 +158,63 @@ private fun SetupForm(state: ServerTestState, dispatch: (ServerTestCommand) -> U
                 }
             }
         }
-        val ready = editable && state.health?.backend == "sim" && state.health.activeSession == null &&
-            key.isNotBlank() && PhoneNumber(phone).canCall && goal.isNotBlank()
         Button({
-            val command = ServerTestCommand.Start(key, phone, goal)
-            key = ""
-            dispatch(command)
+            if (ready) {
+                if (mode == ServerTestMode.RealCall) {
+                    pendingCall = PendingRealCall(PhoneNumber(phone).digits, goal.trim())
+                } else {
+                    val command = ServerTestCommand.Start(key, phone, goal)
+                    key = ""
+                    dispatch(command)
+                }
+            }
         }, Modifier.fillMaxWidth().heightIn(min = 52.dp), enabled = ready) {
-            Text(if (state.starting) "서버 응답 기다리는 중" else "테스트 시작")
+            Text(when {
+                state.starting -> "서버 응답 기다리는 중"
+                mode == ServerTestMode.RealCall -> "실통화 준비"
+                else -> "테스트 시작"
+            })
         }
-        Text("시작 직전에 시뮬레이터 상태를 다시 확인해요. 음성 인식 대신 글과 선택지로 테스트해요.",
+        Text(if (mode == ServerTestMode.RealCall)
+            if (voice == null) "서버의 070 전화로 발신해요. 현재 앱은 통화 음성 재생·마이크 전달을 지원하지 않아요. 진행 상황과 입력 요청을 확인할 수 있어요."
+            else "서버의 070 전화로 발신해요. 음성은 Agent와의 대화에만 사용하고, ARS는 듣기만 지원해요. 상담원 통화는 지원하지 않아요."
+            else "시작 직전에 서버 상태를 다시 확인해요. 시뮬레이터는 글과 선택지로 테스트해요.",
             style = MaterialTheme.typography.bodyMedium, color = ArsColors.Secondary)
     }
+    if (pendingValid) {
+        val target = requireNotNull(pendingCall)
+        AlertDialog(
+            onDismissRequest = { pendingCall = null },
+            title = { Text("실제로 전화를 걸까요?") },
+            text = {
+                Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("확인하면 이 번호로 실제 전화가 걸립니다.")
+                    Text(formatPhone(target.phone), style = MaterialTheme.typography.titleLarge)
+                    Text(target.goal)
+                    Text("서버의 070 전화로 발신하며, 실제 통화 시간과 요금이 발생할 수 있어요.")
+                    Text(if (voice == null) "앱의 음성 재생·마이크 전달은 아직 지원하지 않아요."
+                        else "ARS 듣기와 Agent 음성 대화를 지원해요. 상담원과의 음성 통화는 지원하지 않아요.")
+                }
+            },
+            confirmButton = {
+                TextButton({
+                    // Consume current consent before dispatch: never reuse a captured/stale confirmation.
+                    val confirmed = pendingCall
+                    if (pendingValid && confirmed != null && key.isNotBlank()) {
+                        pendingCall = null
+                        val command = ServerTestCommand.Start(key, confirmed.phone, confirmed.goal, ServerTestMode.RealCall)
+                        key = ""
+                        dispatch(command)
+                    }
+                }) { Text("실제 발신") }
+            },
+            dismissButton = { TextButton({ pendingCall = null }) { Text("취소") } }
+        )
+    }
 }
+
+private data class PendingRealCall(val phone: String, val goal: String)
 
 @Composable
 private fun SessionContent(state: ServerTestState, dispatch: (ServerTestCommand) -> Unit) {
@@ -241,7 +308,7 @@ private fun RequestForm(request: UserRequest, canSend: Boolean, dispatch: (Serve
                 Button({
                     val reply = ServerTestCommand.Respond(request.requestId, value)
                     value = ""; dispatch(reply)
-                }, enabled = enabled && value.isNotEmpty()) { Text("입력 보내기") }
+                }, enabled = enabled && value.isNotEmpty()) { Text("입력 완료") }
             }
             else -> Text("지원하지 않는 입력 요청이에요. 상태를 확인하거나 테스트를 종료해 주세요.", color = ArsColors.Red)
         }

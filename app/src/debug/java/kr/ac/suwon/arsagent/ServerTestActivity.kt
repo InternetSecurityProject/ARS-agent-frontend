@@ -11,6 +11,8 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kr.ac.suwon.arsagent.servertest.*
+import kr.ac.suwon.arsagent.servertest.voice.ServerVoiceBinding
+import kr.ac.suwon.arsagent.servertest.voice.VoiceSessionRelay
 
 /** Debug-only: this Activity never receives credentials through intents or saved state. */
 class ServerTestActivity : ComponentActivity() {
@@ -21,12 +23,16 @@ class ServerTestActivity : ComponentActivity() {
         setContent {
             val model: ServerTestViewModel = viewModel()
             val state by model.controller.state.collectAsStateWithLifecycle()
-            ServerTestScreen(state, model.controller::dispatch, ::finish)
+            ServerVoiceBinding(state, model.controller::dispatch, model.voiceSessions,
+                latestState = { model.controller.state.value }) { voice ->
+                ServerTestScreen(state, model.controller::dispatch, ::finish, voice)
+            }
         }
     }
 }
 
 class ServerTestViewModel : ViewModel() {
-    val controller = ServerTestController(viewModelScope)
+    val voiceSessions = VoiceSessionRelay()
+    val controller = ServerTestController(viewModelScope, { key -> voiceSessions.decorate(HttpServerTestGateway(key)) })
     override fun onCleared() { controller.close() }
 }

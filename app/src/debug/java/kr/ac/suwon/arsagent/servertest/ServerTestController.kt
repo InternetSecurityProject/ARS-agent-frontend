@@ -24,7 +24,7 @@ class ServerTestController(
 
     fun dispatch(command: ServerTestCommand) = when (command) {
         ServerTestCommand.CheckConnection -> checkConnection()
-        is ServerTestCommand.Start -> start(command.key, command.phone, command.goal)
+        is ServerTestCommand.Start -> start(command.key, command.phone, command.goal, command.mode)
         is ServerTestCommand.Respond -> respond(command.requestId, command.value, command.selection)
         is ServerTestCommand.Keys -> sendKeys(command.keys)
         is ServerTestCommand.ReviseGoal -> reviseGoal(command.text)
@@ -50,7 +50,7 @@ class ServerTestController(
         }
     }
 
-    fun start(key: String, phone: String, goal: String) {
+    fun start(key: String, phone: String, goal: String, mode: ServerTestMode = ServerTestMode.Sim) {
         val current = state.value
         if (closed || current.starting || current.checking || current.hasSession || current.creationUncertain) return
         if (key.isBlank() || key.any { it.code !in 32..126 }) { error("API 키를 입력해 주세요."); return }
@@ -64,7 +64,7 @@ class ServerTestController(
                 api = client
                 val health = client.health() // Recheck before every explicit creation, not just on entering the screen.
                 mutable.update { it.copy(health = health) }
-                healthProblem(health)?.let { error(it); return@launch }
+                healthProblem(health, mode)?.let { error(it); return@launch }
                 attemptedCreation = true
                 val created = client.create(number.digits, goal.trim())
                 session = created
@@ -84,8 +84,11 @@ class ServerTestController(
         }
     }
 
-    private fun healthProblem(health: HealthResponse): String? = when {
-        health.backend != "sim" -> "시뮬레이터 서버가 아니어서 테스트를 시작할 수 없어요."
+    private fun healthProblem(health: HealthResponse, expectedMode: ServerTestMode? = null): String? = when {
+        ServerTestMode.fromBackend(health.backend) == null -> "지원하지 않는 서버 통화 모드예요."
+        expectedMode != null && health.backend != expectedMode.backend ->
+            if (expectedMode == ServerTestMode.Sim) "실통화 서버예요. 실제 발신 확인이 필요해요."
+            else "서버 통화 모드가 바뀌었어요. 연결 확인 후 다시 진행해 주세요."
         health.activeSession != null -> "다른 세션이 진행 중이에요. 해당 테스트가 끝난 뒤 다시 확인해 주세요."
         else -> null
     }

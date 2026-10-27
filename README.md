@@ -2,9 +2,11 @@
 
 인터넷보안프로젝트 · 먹보들. Kotlin + Jetpack Compose 기반 전화앱 UI.
 
-> 현재는 **UI 데모**입니다. 실제 전화 발신, 음성 인식, 오디오 재생, 연락처/통화기록 조회, 백엔드 통신은 하지 않습니다. 모든 번호·기록·날씨는 예시입니다. 실제 개인정보를 입력하지 마세요.
+> **기본 전화 화면과 화면 미리보기는 UI 데모**입니다. 번호·기록·날씨는 예시이며 실제 전화나 연락처/통화기록 조회를 하지 않습니다. 기본 화면에 실제 개인정보를 입력하지 마세요.
 
-API v0.3 **통신 기반과 로컬 모의 서버 테스트**는 준비되어 있지만 화면에 연결하지 않았습니다. 서버 주소·앱 키도 기본 설정하지 않았으며 기존 데모/화면 미리보기는 그대로입니다. [연동 가이드](docs/api-integration.md)를 참고하세요.
+debug APK의 별도 **ARS 서버 테스트**에서는 배포된 API에 연결할 수 있습니다. `clawops` 서버는 번호·목적·API 키를 입력하고 **실제 발신 확인**을 누르면 실제 전화를 걸 수 있으므로 주의하세요. 키는 저장하지 않습니다. Agent 질문·진행 안내 TTS, 목적·일반 답변 STT, ARS 수신 오디오도 이 화면에서 시험할 수 있습니다. 상담원 음성 통화는 지원하지 않습니다.
+
+기존 B/C/D 디자인의 서버 데이터·후보 선택·개인정보 입력 컴포넌트는 준비되어 있지만, **기본 앱의 Agent 버튼과 실제 서버 흐름은 아직 연결하지 않았습니다.** 해당 연결은 설계 초안 단계입니다. API 사용법과 검증 한계는 [연동 가이드](docs/api-integration.md)를 참고하세요.
 
 ## 실행
 
@@ -41,7 +43,7 @@ APK: `app/build/outputs/apk/debug/app-debug.apk`.
 
 ```
 app/src/main/java/kr/ac/suwon/arsagent/
-  data/api/    독립 REST/이벤트 WS 클라이언트, 요청·응답 모델 (UI 미연결)
+  data/api/    REST/이벤트 WS 클라이언트, 요청·응답 모델
   model/       순수 Kotlin 상태·전환 규칙·예시 데이터
   ui/          화면, 공통 컨트롤, 테마
   AppViewModel 데모 타이밍과 취소 처리
@@ -50,7 +52,7 @@ app/src/main/java/kr/ac/suwon/arsagent/
 - [Figma](https://www.figma.com/design/ul4FvS9IStRhfdoSzm70Ri/ARS-Agent): A/B/C/D01, 현재 C04는 수동 키패드.
 - 원본 SVG는 `assets/figma/`. 네트워크로 이미지를 불러오지 않습니다.
 - Noto Sans KR은 SIL OFL로 포함. SF Pro와 iOS 시스템 상태 표시줄은 재배포/모사하지 않습니다.
-- 다음 화면 연동 단계에서 `data/api`의 서버 응답·이벤트를 `model`에 반영합니다. 현재 `AppViewModel`은 기존 데모 그대로입니다.
+- 서버 테스트는 별도 debug 컨트롤러를 사용합니다. 기본 앱의 `AppViewModel`은 기존 데모 그대로이며 B/C/D 서버 렌더러와의 실행 경로 연결은 후속 작업입니다.
 
 ## GitHub Actions / APK 배포
 

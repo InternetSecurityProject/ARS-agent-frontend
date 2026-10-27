@@ -37,6 +37,7 @@ sealed interface Action {
     data object CommitGoal : Action
     data object CommitAnswer : Action
     data object DeleteSecure : Action
+    data object CommitSecure : Action
     data object Back : Action
     data object End : Action
     data object Tick : Action
@@ -95,14 +96,14 @@ data class AppState(
         is Action.Key -> when {
             screen != Screen.Call -> this
             phase == Phase.Secure -> {
-                val entry = secureEntry.append(action.digit)
-                if (entry.count == 6) copy(secureEntry = SecureEntry.Empty, phase = Phase.Sending)
-                else copy(secureEntry = entry)
+                copy(secureEntry = secureEntry.append(action.digit))
             }
             keypadOpen && action.digit in "0123456789*#" -> copy(manualDigits = (manualDigits + action.digit).takeLast(16), manualInputRevision = manualInputRevision + 1)
             else -> this
         }
         Action.DeleteSecure -> if (screen == Screen.Call && phase == Phase.Secure) copy(secureEntry = secureEntry.delete()) else this
+        Action.CommitSecure -> if (screen == Screen.Call && phase == Phase.Secure && secureEntry.count == 6)
+            copy(secureEntry = SecureEntry.Empty, phase = Phase.Sending) else this
         Action.OpenKeypad -> if (screen == Screen.Call && phase != Phase.Secure && phase != Phase.Sending) copy(keypadOpen = !keypadOpen, manualDigits = "", audioMenu = false) else this
         Action.ToggleAudio -> if (screen == Screen.Call && agent && phase != Phase.Dialing) copy(audioOn = !audioOn) else this
         Action.ToggleAudioMenu -> if (screen == Screen.Call) copy(audioMenu = !audioMenu) else this

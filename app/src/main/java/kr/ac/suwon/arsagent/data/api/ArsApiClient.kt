@@ -23,12 +23,12 @@ import okio.ByteString
 import okio.BufferedSink
 
 /** Unwired transport: construction and app launch never initiate a request. */
-class ArsApiClient(private val config: ArsApiConfig) : Closeable {
-    private val http = OkHttpClient.Builder()
+class ArsApiClient internal constructor(private val config: ArsApiConfig, private val http: OkHttpClient) : Closeable {
+    constructor(config: ArsApiConfig) : this(config, OkHttpClient.Builder()
         .retryOnConnectionFailure(false) // POST /sessions can place a call: never repeat it implicitly.
         .followRedirects(false).followSslRedirects(false)
         .connectTimeout(10, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS)
-        .writeTimeout(10, TimeUnit.SECONDS).callTimeout(30, TimeUnit.SECONDS).build()
+        .writeTimeout(10, TimeUnit.SECONDS).callTimeout(30, TimeUnit.SECONDS).build())
     private val closed = AtomicBoolean(false)
 
     suspend fun health(): HealthResponse = withContext(Dispatchers.IO) {
@@ -192,9 +192,17 @@ class ArsApiClient(private val config: ArsApiConfig) : Closeable {
 
     override fun close() {
         if (closed.compareAndSet(false, true)) {
-            http.dispatcher.cancelAll()
-            http.connectionPool.evictAll()
-            http.dispatcher.executorService.shutdown()
+            // TLS socket cleanup can write to the network. Callers include the UI thread
+            // and ViewModel.onCleared(), so mark closed now but release sockets off-thread.
+            val executor = http.dispatcher.executorService
+            executor.execute {
+                try {
+                    http.dispatcher.cancelAll()
+                    http.connectionPool.evictAll()
+                } finally {
+                    executor.shutdown()
+                }
+            }
         }
     }
 

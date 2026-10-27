@@ -69,7 +69,7 @@ class ServerTestUiTest {
         compose.setContent { ServerTestScreen(live(request("secure_input")), actions::add, {}) }
         compose.onNodeWithTag("server-input").performScrollTo().performTextInput("1234567890")
         assertTrue(actions.isEmpty())
-        compose.onNodeWithText("입력 보내기").performScrollTo().performClick()
+        compose.onNodeWithText("입력 완료").performScrollTo().performClick()
         val reply = actions.single() as ServerTestCommand.Respond
         assertEquals("1234567890", reply.value)
         assertFalse(reply.toString().contains("1234567890"))

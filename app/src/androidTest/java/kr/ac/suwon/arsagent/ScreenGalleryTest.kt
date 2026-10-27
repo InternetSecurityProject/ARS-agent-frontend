@@ -14,6 +14,7 @@ class ScreenGalleryTest {
         compose.onNodeWithText("C").performClick()
         compose.onNodeWithText("C03 · 민감정보 입력").performScrollTo().performClick()
         compose.onNodeWithText("생년월일 6자리 입력").assertIsDisplayed()
+        compose.onNodeWithText("입력 완료").assertIsDisplayed().assertIsNotEnabled()
         compose.onNodeWithContentDescription("키 1").performClick()
         compose.mainClock.advanceTimeBy(15_000)
         compose.onNodeWithText("○○○○○○").assertIsDisplayed()

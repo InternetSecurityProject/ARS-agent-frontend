@@ -57,17 +57,19 @@ private val letters = mapOf('2' to "ABC", '3' to "DEF", '4' to "GHI", '5' to "JK
 fun PhoneKeypad(
     onKey: (Char) -> Unit, modifier: Modifier = Modifier, compact: Boolean = false,
     enabled: Boolean = true,
+    keyEnabled: (Char) -> Boolean = { true },
+    rowSpacing: Dp = 24.dp,
 ) {
     // App-specific phone grid, exceeding Android's 48dp touch-target / 8dp spacing minimum.
     val size = 72.dp
     val keypadWidth = 280.dp
-    Column(modifier.widthIn(max = keypadWidth).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+    Column(modifier.widthIn(max = keypadWidth).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(rowSpacing)) {
         listOf("123", "456", "789", "*0#").forEach { digits ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 digits.forEach { digit ->
                     Column(Modifier.size(size).shadow(if (compact) 0.dp else 7.dp, CircleShape)
                         .background(Color.White.copy(alpha = if (compact) .76f else 1f), CircleShape)
-                        .clip(CircleShape).clickable(enabled = enabled, role = Role.Button) { onKey(digit) }
+                        .clip(CircleShape).clickable(enabled = enabled && keyEnabled(digit), role = Role.Button) { onKey(digit) }
                         .semantics { contentDescription = "키 $digit" },
                         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                         Text(digit.toString(), fontFamily = androidx.compose.ui.text.font.FontFamily.SansSerif,

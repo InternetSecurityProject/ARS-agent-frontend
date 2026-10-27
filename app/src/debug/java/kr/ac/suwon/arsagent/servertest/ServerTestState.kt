@@ -4,10 +4,15 @@ import kr.ac.suwon.arsagent.data.api.*
 
 const val SERVER_TEST_URL = "https://ars.mcsmtp.org/v1"
 
+enum class ServerTestMode(val backend: String) {
+    Sim("sim"), RealCall("clawops");
+    companion object { fun fromBackend(backend: String?): ServerTestMode? = entries.firstOrNull { it.backend == backend } }
+}
+
 sealed class ServerTestCommand {
     final override fun toString() = "ServerTestCommand([redacted])"
     data object CheckConnection : ServerTestCommand()
-    data class Start(val key: String, val phone: String, val goal: String) : ServerTestCommand()
+    data class Start(val key: String, val phone: String, val goal: String, val mode: ServerTestMode = ServerTestMode.Sim) : ServerTestCommand()
     data class Respond(val requestId: String, val value: String, val selection: Boolean = false) : ServerTestCommand()
     data class Keys(val keys: String) : ServerTestCommand()
     data class ReviseGoal(val text: String) : ServerTestCommand()

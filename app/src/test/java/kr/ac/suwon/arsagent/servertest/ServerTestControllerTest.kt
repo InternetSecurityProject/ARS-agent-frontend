@@ -41,7 +41,67 @@ class ServerTestControllerTest {
         start(c)
         assertEquals(0, f.creates)
         assertFalse(c.state.value.hasSession)
-        assertTrue(c.state.value.error!!.contains("시뮬레이터"))
+        assertTrue(c.state.value.error!!.contains("확인"))
+    }
+
+    @Test fun realBackendHealthCheckIsAllowedButDoesNotDial() = runCase { c, f ->
+        f.healthValue = f.healthValue.copy(backend = "clawops")
+        c.checkConnection(); runCurrent()
+        assertEquals("clawops", c.state.value.health?.backend)
+        assertNull(c.state.value.error)
+        assertEquals(0, f.creates)
+    }
+
+    @Test fun explicitlyConfirmedRealCallUsesExactTargetOnceWithoutExposingCredentials() = runCase { c, f ->
+        f.healthValue = f.healthValue.copy(backend = "clawops")
+        c.start("test-real-key", "070-1111-2222", "  가상 대상 조회  ", ServerTestMode.RealCall)
+        runCurrent()
+        assertEquals(listOf("07011112222" to "가상 대상 조회"), f.createdTargets)
+        assertTrue(c.state.value.hasSession)
+        assertFalse(c.state.value.toString().contains("test-real-key"))
+    }
+
+    @Test fun confirmedRealCallCannotRunIfServerBecameSim() = runCase { c, f ->
+        f.healthValue = f.healthValue.copy(backend = "clawops")
+        c.checkConnection(); runCurrent()
+        f.healthValue = f.healthValue.copy(backend = "sim")
+        c.start("test-real-key", "07011112222", "조회", ServerTestMode.RealCall); runCurrent()
+        assertEquals(0, f.creates)
+        assertFalse(c.state.value.hasSession)
+        assertNotNull(c.state.value.error)
+    }
+
+    @Test fun unknownBackendCannotDialEvenWithRealConfirmation() = runCase { c, f ->
+        f.healthValue = f.healthValue.copy(backend = "future_backend")
+        c.start("test-real-key", "07011112222", "조회", ServerTestMode.RealCall); runCurrent()
+        assertEquals(0, f.creates)
+        assertNotNull(c.state.value.error)
+    }
+
+    @Test fun confirmedRealCallStillRejectsAnotherActiveSession() = runCase { c, f ->
+        f.healthValue = f.healthValue.copy(backend = "clawops", activeSession = "other-session")
+        c.start("test-real-key", "07011112222", "조회", ServerTestMode.RealCall); runCurrent()
+        assertEquals(0, f.creates)
+        assertTrue(c.state.value.error!!.contains("다른"))
+    }
+
+    @Test fun duplicateRealConfirmationCannotCreateTwice() = runCase { c, f ->
+        f.healthValue = f.healthValue.copy(backend = "clawops")
+        repeat(2) { c.start("test-real-key", "07011112222", "조회", ServerTestMode.RealCall) }
+        runCurrent()
+        c.start("test-real-key", "07011112222", "조회", ServerTestMode.RealCall); runCurrent()
+        assertEquals(1, f.creates)
+    }
+
+    @Test fun realCreateResponseLossStillBlocksConfirmedRetry() = runCase { c, f ->
+        f.healthValue = f.healthValue.copy(backend = "clawops")
+        f.createFailure = ApiConnectionException()
+        c.start("test-real-key", "07011112222", "조회", ServerTestMode.RealCall); runCurrent()
+        assertTrue(c.state.value.creationUncertain)
+        f.createFailure = null
+        c.start("test-real-key", "07011112222", "조회", ServerTestMode.RealCall); runCurrent()
+        assertEquals(1, f.creates)
+        assertFalse(c.state.value.hasSession)
     }
 
     @Test fun busyServerAndMissingKeyDoNotStart() = runCase { c, f ->
@@ -273,6 +333,7 @@ private class FakeGateway : ServerTestGateway {
     var initial = SessionSnapshot("listening", "듣는 중")
     val bus = MutableSharedFlow<SessionEvent>(extraBufferCapacity = 32)
     var creates = 0
+    val createdTargets = mutableListOf<Pair<String, String>>()
     var createFailure: Throwable? = null
     var actionFailure: Throwable? = null
     var onAction: suspend () -> Unit = {}
@@ -283,6 +344,7 @@ private class FakeGateway : ServerTestGateway {
     override suspend fun health() = healthValue
     override suspend fun create(phone: String, goal: String): CreatedSession {
         creates++
+        createdTargets.add(phone to goal)
         createFailure?.let { throw it }
         return CreatedSession("s1", "session-secret", "wss://example.test/v1/sessions/s1/events", "wss://example.test/v1/sessions/s1/audio", phone, "dialing", goal)
     }
