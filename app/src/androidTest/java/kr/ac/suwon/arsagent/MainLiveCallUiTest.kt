@@ -138,8 +138,11 @@ class MainLiveCallUiTest {
         compose.onNodeWithContentDescription("키 3").performScrollTo().performClick()
         compose.waitUntil(5_000) { gateway.actions.isNotEmpty() }
         request(UserRequest("answer-ui", "clarification", "어느 지역인가요?", "2099-01-01T00:00:00Z"))
-        compose.onNodeWithContentDescription("음성 대신 텍스트 입력").performScrollTo().performTextInput("부산")
-        compose.onNodeWithText("답변 보내기").performScrollTo().performClick()
+        // The preceding key's fake HTTP receipt can arrive after the request event.
+        // A person cannot type into the disabled field; the semantics input action can.
+        compose.waitUntil(5_000) { owner.canRespond("answer-ui") }
+        compose.onNodeWithContentDescription("음성 대신 텍스트 입력").performScrollTo().assertIsEnabled().performTextInput("부산")
+        compose.onNodeWithText("답변 보내기").performScrollTo().assertIsEnabled().performClick()
         compose.waitUntil(5_000) { gateway.actions.size == 2 }
         compose.runOnIdle {
             assertEquals(SessionAction.Key("3"), gateway.actions[0])
