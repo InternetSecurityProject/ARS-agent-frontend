@@ -18,14 +18,18 @@ internal fun LiveSessionScreen(entry: LiveEntry, server: ServerTestState, owner:
     var audioMenu by remember { mutableStateOf(false) }
     var confirmExit by remember { mutableStateOf(false) }
     val pending = server.snapshot.pendingRequest
-    LaunchedEffect(pending, server.active) { if (pending != null || !server.active) { keypad = false; keys = "" } }
+    LaunchedEffect(pending, server.active, server.sessionUnavailable) {
+        if (pending != null || !server.active || server.sessionUnavailable) { keypad = false; keys = "" }
+        if (server.sessionUnavailable) { audioMenu = false; confirmExit = false }
+    }
     val canKey = server.canSend && pending == null && server.snapshot.status !in setOf("dialing", "connected_to_agent")
     val canReply = pending != null && owner.canRespond(pending.requestId)
     val snapshot = if (server.hasSession) server.snapshot else SessionSnapshot("dialing",
         if (server.creationUncertain) "발신 처리 여부를 확인할 수 없어요." else "기관에 전화를 걸고 있어요.", goal = entry.goal)
     val controls = ServerCallControls(
-        elapsedSeconds = entry.elapsedSeconds,
-        endEnabled = server.active && !server.starting && !server.busy,
+        elapsedSeconds = entry.elapsedSeconds.takeUnless { server.sessionUnavailable },
+        stateUnavailable = server.sessionUnavailable,
+        endEnabled = server.active && !server.sessionUnavailable && !server.starting && !server.busy,
         arsEnabled = voice?.arsEnabled == true,
         arsAvailable = voice != null && server.active && server.snapshot.status != "connected_to_agent",
         keypadAvailable = canKey, keypadOpen = keypad, manualKeys = keys,
@@ -46,7 +50,7 @@ internal fun LiveSessionScreen(entry: LiveEntry, server: ServerTestState, owner:
         })
     BServerCallScreen(entry.number, snapshot, server.result,
         onEnd = { voice?.cancelInput?.invoke(); owner.dispatch(ServerTestCommand.Cancel) },
-        onBack = { if (!server.active && server.hasSession) onReturn() else confirmExit = true },
+        onBack = { if (server.sessionUnavailable || !server.active && server.hasSession) onReturn() else confirmExit = true },
         choiceInput = CandidateChoiceInput(canReply, { owner.dispatch(ServerTestCommand.Respond(it.requestId, it.key, true)) }),
         secureInput = SecureInputInput(canReply, { owner.dispatch(ServerTestCommand.Respond(it.requestId, it.digits)) }),
         answerInput = ServerAnswerInput(canReply, { owner.dispatch(ServerTestCommand.Respond(it.requestId, it.text)) },
@@ -65,6 +69,10 @@ internal fun LiveSessionScreen(entry: LiveEntry, server: ServerTestState, owner:
 @Composable
 private fun LiveSessionExtras(server: ServerTestState, voice: ServerVoiceUi?, audio: LiveAudioUi?,
     compactInput: Boolean, owner: LiveCallOwner) {
+    if (server.sessionUnavailable) {
+        Text("서버에서 실제 통화 종료를 확인하지 못했어요. 기본 화면으로 돌아가도 통화가 남아 있을 수 있어요. 서버 담당자에게 확인해 주세요.", color = ArsColors.Secondary)
+        return
+    }
     server.error?.let { Text(it, color = ArsColors.Red) }
     if (server.busy) Text("요청을 전달하고 있어요.", color = ArsColors.Secondary)
     if (server.hasSession && server.active && (!server.streamConnected || server.actionUncertain)) {

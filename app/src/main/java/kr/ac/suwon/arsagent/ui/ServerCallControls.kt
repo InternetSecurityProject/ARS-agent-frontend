@@ -20,6 +20,7 @@ data class ServerCallControls(
     val onAudioMenu: () -> Unit = {},
     val onRoute: (AudioRoute) -> Unit = {},
     val onKey: (Char) -> Unit = {},
+    val stateUnavailable: Boolean = false,
     val extras: @Composable () -> Unit = {},
 )
 

@@ -314,6 +314,72 @@ class ServerTestControllerTest {
         assertTrue(f.actions.isEmpty())
     }
 
+    @Test fun missingSessionStopsLocalInputWithoutPretendingTheCallEnded() = runCase { c, f ->
+        start(c)
+        f.actionFailure = ApiHttpException(404, "not_found")
+        c.cancel(); runCurrent()
+        assertTrue(c.state.value.sessionUnavailable)
+        assertNotEquals("ended", c.state.value.snapshot.status)
+        assertNull(c.state.value.result)
+        assertFalse(c.state.value.canSend)
+        assertFalse(c.state.value.streamConnected)
+        c.cancel(); c.sendKeys("1"); c.reconnect(); runCurrent()
+        assertEquals(listOf(SessionAction.Cancel), f.actions)
+        f.emit(SessionEvent.StatusChanged("late", StatusChange("listening", "늦은 이전 안내"))); runCurrent()
+        assertTrue(c.state.value.sessionUnavailable)
+        c.reset(); runCurrent()
+        assertFalse(c.state.value.hasSession)
+        assertTrue(f.closed)
+    }
+
+    @Test fun missingResultMarksAnActiveSessionUnavailableButNeverDowngradesKnownEnd() = runTest {
+        for (status in listOf("listening", "ended")) {
+            val f = FakeGateway().apply {
+                initial = SessionSnapshot(status, "가상 상태")
+                resultFailure = ApiHttpException(404, "not_found")
+            }
+            val c = ServerTestController(this, { f }, { now })
+            try {
+                start(c); c.fetchResult(); runCurrent()
+                assertEquals(status == "listening", c.state.value.sessionUnavailable)
+                assertEquals(status, c.state.value.snapshot.status)
+            } finally { c.close() }
+        }
+    }
+
+    @Test fun acceptedCancelAfterConcurrentMissingReadStillProvesTermination() = runCase { c, f ->
+        start(c)
+        val gate = CompletableDeferred<Unit>()
+        f.onAction = { gate.await() }
+        c.cancel(); runCurrent()
+        f.resultFailure = ApiHttpException(404, "not_found")
+        c.fetchResult(); runCurrent()
+        assertTrue(c.state.value.sessionUnavailable)
+        gate.complete(Unit); runCurrent()
+        assertEquals("ended", c.state.value.snapshot.status)
+        assertFalse(c.state.value.sessionUnavailable)
+        assertEquals(listOf(SessionAction.Cancel), f.actions)
+    }
+
+    @Test fun onlyMissingSessionStreamCodesOfferUnavailableRecovery() = runTest {
+        for (code in listOf(4404, 404, 1006)) {
+            val f = FakeGateway().apply { streamFailure = ApiStreamException(code) }
+            val c = ServerTestController(this, { f }, { now })
+            try {
+                start(c)
+                assertEquals(code != 1006, c.state.value.sessionUnavailable)
+                assertNotEquals("ended", c.state.value.snapshot.status)
+            } finally { c.close() }
+        }
+    }
+
+    @Test fun aCreate404WithoutASessionDoesNotEnableAbandoningAnUnknownCall() = runCase { c, f ->
+        f.createFailure = ApiHttpException(404, "not_found")
+        start(c)
+        assertFalse(c.state.value.hasSession)
+        assertFalse(c.state.value.sessionUnavailable)
+    }
+
     @Test fun immediateReconnectSnapshotIsNotDroppedByMainImmediateDispatcher() = runTest {
         val fake = FakeGateway()
         val scope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
@@ -336,6 +402,8 @@ private class FakeGateway : ServerTestGateway {
     val createdTargets = mutableListOf<Pair<String, String>>()
     var createFailure: Throwable? = null
     var actionFailure: Throwable? = null
+    var resultFailure: Throwable? = null
+    var streamFailure: Throwable? = null
     var onAction: suspend () -> Unit = {}
     var closed = false
     val actions = mutableListOf<SessionAction>()
@@ -350,6 +418,7 @@ private class FakeGateway : ServerTestGateway {
     }
     override fun events(session: CreatedSession) = flow {
         emit(SessionEvent.Snapshot("now", initial))
+        streamFailure?.let { throw it }
         emitAll(bus)
     }
     suspend fun emit(event: SessionEvent) { bus.emit(event) }
@@ -359,6 +428,9 @@ private class FakeGateway : ServerTestGateway {
         onAction()
         return ActionResponse(true, status = if (action == SessionAction.Cancel) "ended" else null)
     }
-    override suspend fun result(session: CreatedSession) = resultValue
+    override suspend fun result(session: CreatedSession): SessionResult {
+        resultFailure?.let { throw it }
+        return resultValue
+    }
     override fun close() { closed = true }
 }

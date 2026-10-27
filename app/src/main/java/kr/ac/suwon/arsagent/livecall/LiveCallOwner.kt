@@ -34,6 +34,10 @@ class LiveCallOwner(scope: CoroutineScope,
         work.launch {
             server.state.collectLatest { state ->
                 if (entry.value == null) return@collectLatest
+                if (state.sessionUnavailable) {
+                    mutable.update { it?.copy(elapsedSeconds = null) }
+                    return@collectLatest
+                }
                 val finalSeconds = state.result?.durationSec?.coerceAtLeast(0)
                 if (finalSeconds != null) {
                     mutable.update { it?.copy(elapsedSeconds = finalSeconds) }
@@ -136,6 +140,17 @@ class LiveCallOwner(scope: CoroutineScope,
         server.reset()
         connectedAt = null
         mutable.value = null
+        return true
+    }
+
+    /** Explicit UI-only escape. Never send Cancel or claim the telephone call has ended. */
+    fun returnAfterUnavailable(): Boolean {
+        val state = server.state.value
+        if (closed || !state.sessionUnavailable || state.busy || state.starting) return false
+        server.reset()
+        connectedAt = null
+        mutable.value = null
+        replies.clear()
         return true
     }
 

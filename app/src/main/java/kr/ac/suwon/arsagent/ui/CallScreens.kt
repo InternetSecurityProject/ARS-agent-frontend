@@ -47,31 +47,8 @@ fun CallScreen(state: AppState, dispatch: (Action) -> Unit, serverData: BCallDat
         val keypad = state.screen == Screen.Call && (secure || state.keypadOpen || secureContent != null)
         val compact = maxHeight < 600.dp
         Column(Modifier.fillMaxSize().padding(horizontal = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            if (compact) {
-                CompactCallBody(state, dispatch, keypad, Modifier.weight(1f), serverData, guardedChoiceInput, choiceSubmitted, secureContent, liveControls, answerInput, purposeContent)
-            } else {
-                Spacer(Modifier.height(topSpace))
-                CallHeader(state, serverData, liveControls?.elapsedSeconds)
-                Spacer(Modifier.height(24.dp))
-                when {
-                secureContent != null -> ServerSecureKeypad(secureContent, Modifier.weight(1f), extraContent = { liveControls?.extras?.invoke() })
-                keypad -> CardFreeKeypad(state, dispatch, Modifier.weight(1f), liveControls = liveControls)
-                !state.agent && state.screen == Screen.Call -> {
-                    Spacer(Modifier.weight(1f))
-                    NormalControls(state, dispatch)
-                    Spacer(Modifier.height(16.dp))
-                }
-                state.screen == Screen.Ended -> Spacer(Modifier.weight(1f))
-                else -> {
-                    ProgressCard(Modifier.fillMaxWidth().weight(1f)) { AgentContent(state, dispatch, serverData, guardedChoiceInput, choiceSubmitted, liveControls, answerInput, purposeContent) }
-                    Spacer(Modifier.height(20.dp))
-                    if (state.screen == Screen.Purpose) Spacer(Modifier.height(88.dp))
-                    else if (serverData?.isEnded != true) AgentControls(state, dispatch, interactive = serverData == null || liveControls != null, liveControls = liveControls)
-                    Spacer(Modifier.height(16.dp))
-                }
-                }
-                if (keypad) Spacer(Modifier.height(16.dp))
-            }
+            ResponsiveCallBody(state, dispatch, keypad, compact, topSpace, Modifier.weight(1f), serverData,
+                guardedChoiceInput, choiceSubmitted, secureContent, liveControls, answerInput, purposeContent)
             if (secureContent != null) {
                 Button({
                     if (secureCanSend && secureToken !in secureReceipts) {
@@ -88,8 +65,8 @@ fun CallScreen(state: AppState, dispatch: (Action) -> Unit, serverData: BCallDat
                     enabled = state.phase == Phase.Secure && state.secureEntry.count == 6) { Text("입력 완료") }
                 Spacer(Modifier.height(12.dp))
             }
-            if (state.screen == Screen.Ended || serverData?.isEnded == true) {
-                PrimaryTextButton("키패드로 돌아가기", { dispatch(Action.Back) })
+            if (state.screen == Screen.Ended || serverData?.isEnded == true || liveControls?.stateUnavailable == true) {
+                PrimaryTextButton(if (liveControls?.stateUnavailable == true) "기본 화면으로 돌아가기" else "키패드로 돌아가기", { dispatch(Action.Back) })
                 Spacer(Modifier.height(30.dp))
             } else {
                 Box(Modifier.heightIn(min = 104.dp), contentAlignment = Alignment.TopCenter) {
@@ -109,30 +86,44 @@ fun CallScreen(state: AppState, dispatch: (Action) -> Unit, serverData: BCallDat
     }
 }
 
-/** Keyboard/short-window layout: scroll the body, never the terminal action. */
+/** Keep the input and its ancestors in place across IME resize; only spacing/scrolling change. */
 @Composable
-private fun CompactCallBody(state: AppState, dispatch: (Action) -> Unit, keypad: Boolean, modifier: Modifier, serverData: BCallData? = null, choiceInput: CandidateChoiceInput? = null, choiceSubmitted: Boolean = false, secureContent: ServerSecureContent? = null,
-    liveControls: ServerCallControls? = null, answerInput: ServerAnswerInput? = null, purposeContent: (@Composable () -> Unit)? = null) {
-    Column(modifier.fillMaxWidth().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
-        Spacer(Modifier.height(32.dp))
-        if (serverData != null) {
+private fun ResponsiveCallBody(state: AppState, dispatch: (Action) -> Unit, keypad: Boolean, compact: Boolean,
+    topSpace: Dp, modifier: Modifier, serverData: BCallData?, choiceInput: CandidateChoiceInput?, choiceSubmitted: Boolean,
+    secureContent: ServerSecureContent?, liveControls: ServerCallControls?, answerInput: ServerAnswerInput?,
+    purposeContent: (@Composable () -> Unit)?) {
+    val scroll = rememberScrollState()
+    Column(modifier.fillMaxWidth().then(if (compact) Modifier.verticalScroll(scroll) else Modifier),
+        horizontalAlignment = Alignment.CenterHorizontally) {
+        val contentSize = if (compact) Modifier else Modifier.weight(1f)
+        Spacer(Modifier.height(if (compact) 32.dp else topSpace))
+        if (!compact || serverData != null) {
             CallHeader(state, serverData, liveControls?.elapsedSeconds)
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(if (compact) 16.dp else 24.dp))
         }
         when {
-            secureContent != null -> ServerSecureKeypad(secureContent, Modifier, scrollable = false, extraContent = { liveControls?.extras?.invoke() })
-            keypad -> CardFreeKeypad(state, dispatch, Modifier, scrollable = false, liveControls = liveControls)
-            state.screen == Screen.Ended -> CallHeader(state)
-            !state.agent -> NormalControls(state, dispatch)
+            secureContent != null -> ServerSecureKeypad(secureContent, contentSize, scrollable = !compact, extraContent = { liveControls?.extras?.invoke() })
+            keypad -> CardFreeKeypad(state, dispatch, contentSize, scrollable = !compact, liveControls = liveControls)
+            state.screen == Screen.Ended -> if (compact) CallHeader(state) else Spacer(Modifier.weight(1f))
+            !state.agent && (state.screen == Screen.Call || compact) -> {
+                if (!compact) Spacer(Modifier.weight(1f))
+                NormalControls(state, dispatch)
+                if (!compact) Spacer(Modifier.height(16.dp))
+            }
             else -> {
-                ProgressCard(Modifier.fillMaxWidth(), scrollable = false) { AgentContent(state, dispatch, serverData, choiceInput, choiceSubmitted, liveControls, answerInput, purposeContent) }
-                if (state.screen == Screen.Call && serverData?.isEnded != true) {
-                    Spacer(Modifier.height(16.dp))
-                    AgentControls(state, dispatch, interactive = serverData == null || liveControls != null, liveControls = liveControls)
+                ProgressCard(Modifier.fillMaxWidth().then(contentSize), scrollable = !compact) {
+                    AgentContent(state, dispatch, serverData, choiceInput, choiceSubmitted, liveControls, answerInput, purposeContent)
+                }
+                if (!compact || state.screen == Screen.Call && serverData?.isEnded != true) {
+                    Spacer(Modifier.height(if (compact) 16.dp else 20.dp))
+                    if (!compact && state.screen == Screen.Purpose) Spacer(Modifier.height(88.dp))
+                    else if (serverData?.isEnded != true) AgentControls(state, dispatch,
+                        interactive = serverData == null || liveControls != null, liveControls = liveControls)
+                    if (!compact) Spacer(Modifier.height(16.dp))
                 }
             }
         }
-        Spacer(Modifier.height(16.dp))
+        if (compact || keypad) Spacer(Modifier.height(16.dp))
     }
 }
 
@@ -158,6 +149,11 @@ private fun CallHeader(state: AppState, serverData: BCallData? = null, liveSecon
 @Composable
 private fun AgentContent(state: AppState, dispatch: (Action) -> Unit, serverData: BCallData? = null, choiceInput: CandidateChoiceInput? = null, choiceSubmitted: Boolean = false,
     liveControls: ServerCallControls? = null, answerInput: ServerAnswerInput? = null, purposeContent: (@Composable () -> Unit)? = null) {
+    if (liveControls?.stateUnavailable == true) {
+        Text("통화 상태 확인 불가", style = MaterialTheme.typography.titleLarge)
+        liveControls.extras()
+        return
+    }
     if (serverData != null) {
         BServerContent(serverData, choiceInput, choiceSubmitted, answerInput)
         liveControls?.extras?.invoke()
@@ -225,15 +221,16 @@ private fun CardEyebrow(text: String) { Text(text, style = MaterialTheme.typogra
 
 @Composable
 private fun AgentControls(state: AppState, dispatch: (Action) -> Unit, interactive: Boolean = true, liveControls: ServerCallControls? = null) {
+    val enabled = interactive && liveControls?.stateUnavailable != true
     Row(Modifier.widthIn(max = 304.dp).fillMaxWidth().heightIn(min = 88.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)) {
         RoundAction(if (state.audioOn) "ARS 소리 끄기" else "ARS 소리 켜기", "agent_blue",
-            { dispatch(Action.ToggleAudio) }, modifier = Modifier.weight(1f), enabled = interactive &&
+            { dispatch(Action.ToggleAudio) }, modifier = Modifier.weight(1f), enabled = enabled &&
                 (liveControls?.arsAvailable ?: (state.phase != Phase.Dialing)))
-        RoundAction("키패드", "keypad", { dispatch(Action.OpenKeypad) }, modifier = Modifier.weight(1f), enabled = interactive &&
+        RoundAction("키패드", "keypad", { dispatch(Action.OpenKeypad) }, modifier = Modifier.weight(1f), enabled = enabled &&
             (liveControls?.keypadAvailable ?: (state.phase != Phase.Dialing)))
         RoundAction("오디오", "speaker", { dispatch(Action.ToggleAudioMenu) }, modifier = Modifier.weight(1f),
-            enabled = interactive && (liveControls?.availableRoutes?.isNotEmpty() ?: true))
+            enabled = enabled && (liveControls?.availableRoutes?.isNotEmpty() ?: true))
     }
 }
 

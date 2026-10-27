@@ -14,7 +14,7 @@ import kr.ac.suwon.arsagent.ui.LiveAudioUi
 @Composable
 fun MainLiveBindings(entry: LiveEntry?, state: ServerTestState, owner: LiveCallOwner,
     sessions: VoiceSessionRelay, content: @Composable (ServerVoiceUi?, LiveAudioUi?) -> Unit) {
-    if (entry == null) { content(null, null); return }
+    if (entry == null || state.sessionUnavailable) { content(null, null); return }
     key(entry.generation) {
         val context = LocalContext.current
         val lifecycle = LocalLifecycleOwner.current.lifecycle

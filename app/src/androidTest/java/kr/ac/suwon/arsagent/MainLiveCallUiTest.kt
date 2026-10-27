@@ -1,5 +1,7 @@
 package kr.ac.suwon.arsagent
 
+import androidx.activity.OnBackPressedDispatcher
+import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.runtime.*
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.*
@@ -187,6 +189,57 @@ class MainLiveCallUiTest {
         compose.waitUntil(5_000) { gateway.actions.size == 2 }
         compose.runOnIdle { assertEquals(SessionAction.Select("fresh-ui", "4"), gateway.actions.last()) }
     }
+
+    @Test fun missingSessionAfterEndShowsUnknownStateAndReturnsWithoutAnotherRemoteAction() {
+        content(); start()
+        compose.runOnIdle { gateway.actionFailure = ApiHttpException(404, "not_found") }
+        compose.onNodeWithText("종료").performClick()
+        compose.waitUntil(5_000) { owner.server.state.value.error != null && !owner.server.state.value.busy }
+        compose.onNodeWithText("통화 상태 확인 불가").assertIsDisplayed()
+        compose.onNodeWithText("서버에서 실제 통화 종료를 확인하지 못했어요.", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("통화 종료 ·", substring = true).assertDoesNotExist()
+        compose.onNodeWithText("종료").assertDoesNotExist()
+        compose.onNodeWithText("기본 화면으로 돌아가기").assertIsDisplayed().performClick()
+        compose.onNodeWithText("실제 ARS").assertIsDisplayed()
+        compose.runOnIdle {
+            assertNull(owner.entry.value)
+            assertEquals(listOf(SessionAction.Cancel), gateway.actions)
+            assertEquals(1, gateway.targets.size)
+            assertTrue(gateway.closed)
+        }
+    }
+
+    @Test fun missingResultAllowsAndroidBackWithoutSendingCancel() {
+        lateinit var back: OnBackPressedDispatcher
+        compose.setContent {
+            back = checkNotNull(LocalOnBackPressedDispatcherOwner.current).onBackPressedDispatcher
+            MainPhoneApp(phone.value, { phone.value = phone.value.reduce(it) }, owner)
+        }
+        start()
+        compose.runOnIdle {
+            gateway.resultFailure = ApiHttpException(404, "not_found")
+            owner.dispatch(ServerTestCommand.FetchResult)
+        }
+        compose.waitUntil(5_000) { owner.server.state.value.sessionUnavailable }
+        compose.onNodeWithText("통화 상태 확인 불가").assertIsDisplayed()
+        compose.runOnIdle { back.onBackPressed() }
+        compose.onNodeWithText("실제 ARS").assertIsDisplayed()
+        compose.runOnIdle {
+            assertNull(owner.entry.value)
+            assertTrue(gateway.actions.isEmpty())
+            assertTrue(gateway.closed)
+        }
+    }
+
+    @Test fun ordinaryCancelNetworkFailureDoesNotOfferMissingSessionEscape() {
+        content(); start()
+        compose.runOnIdle { gateway.actionFailure = ApiConnectionException() }
+        compose.onNodeWithText("종료").performClick()
+        compose.waitUntil(5_000) { owner.server.state.value.actionUncertain && !owner.server.state.value.busy }
+        compose.onNodeWithText("통화 상태 확인 불가").assertDoesNotExist()
+        compose.onNodeWithText("기본 화면으로 돌아가기").assertDoesNotExist()
+        compose.onNodeWithText("상태 다시 연결").performScrollTo().assertIsDisplayed()
+    }
 }
 
 private class MainUiGateway : ServerTestGateway {
@@ -195,8 +248,10 @@ private class MainUiGateway : ServerTestGateway {
     val bus = MutableSharedFlow<SessionEvent>(extraBufferCapacity = 32)
     var cancelGate: CompletableDeferred<Unit>? = null
     var actionFailure: Exception? = null
+    var resultFailure: Exception? = null
     var streams = 0
     var reconnectSnapshot: SessionSnapshot? = null
+    var closed = false
     override suspend fun health() = HealthResponse("clawops", "fake", "fake")
     override suspend fun create(phone: String, goal: String): CreatedSession {
         targets += phone to goal
@@ -214,7 +269,9 @@ private class MainUiGateway : ServerTestGateway {
         if (action == SessionAction.Cancel) cancelGate?.await()
         return ActionResponse(true)
     }
-    override suspend fun result(session: CreatedSession): SessionResult =
-        SessionResult.Completed(CompletedResult("success", "completed", "서버의 최종 결과", durationSec = 37))
-    override fun close() = Unit
+    override suspend fun result(session: CreatedSession): SessionResult {
+        resultFailure?.let { throw it }
+        return SessionResult.Completed(CompletedResult("success", "completed", "서버의 최종 결과", durationSec = 37))
+    }
+    override fun close() { closed = true }
 }

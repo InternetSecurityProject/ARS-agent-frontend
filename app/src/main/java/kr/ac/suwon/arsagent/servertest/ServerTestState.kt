@@ -36,7 +36,9 @@ data class ServerTestState(
     val result: CompletedResult? = null,
     val resultNote: String? = null,
     val error: String? = null,
+    // Losing a session is not proof that the remote telephone call has ended.
+    val sessionUnavailable: Boolean = false,
 ) {
     val active: Boolean get() = hasSession && snapshot.status != "ended"
-    val canSend: Boolean get() = active && streamConnected && !busy && !actionUncertain
+    val canSend: Boolean get() = active && streamConnected && !busy && !actionUncertain && !sessionUnavailable
 }

@@ -44,7 +44,7 @@ fun BServerCallScreen(
             CallScreen(frame, { action ->
                 when (action) {
                     Action.End -> onEnd()
-                    Action.Back -> if (data.isEnded) onBack()
+                    Action.Back -> if (data.isEnded || controls?.stateUnavailable == true) onBack()
                     Action.ToggleAudio -> controls?.onToggleArs?.invoke()
                     Action.OpenKeypad -> controls?.onKeypad?.invoke()
                     Action.ToggleAudioMenu -> controls?.onAudioMenu?.invoke()

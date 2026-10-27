@@ -108,6 +108,43 @@ class LiveCallOwnerTest {
         assertFalse(owner.server.state.value.hasSession)
     }
 
+    @Test fun missingSessionHidesTimerAndExplicitReturnReleasesOnlyLocalResources() = runCase { owner, api ->
+        owner.begin("131"); owner.editGoal("조회"); owner.prepare(); owner.confirm("fake-test-key"); runCurrent()
+        assertFalse(owner.returnAfterUnavailable())
+        api.events.emit(SessionEvent.StatusChanged("now", StatusChange("listening", "안내"))); runCurrent()
+        advanceTimeBy(3000); runCurrent()
+        assertEquals(3, owner.entry.value?.elapsedSeconds)
+        api.actionFailure = ApiHttpException(404, "not_found")
+        owner.dispatch(ServerTestCommand.Cancel); runCurrent()
+        assertNull(owner.entry.value?.elapsedSeconds)
+        advanceTimeBy(5000); runCurrent()
+        assertNull(owner.entry.value?.elapsedSeconds)
+        assertFalse(owner.returnAfterEnd())
+        assertTrue(owner.returnAfterUnavailable())
+        assertNull(owner.entry.value)
+        assertFalse(owner.server.state.value.hasSession)
+        assertEquals(listOf(SessionAction.Cancel), api.actions)
+        assertEquals(1, api.closes)
+        assertTrue(owner.begin("131"))
+        runCurrent()
+        assertEquals(1, api.targets.size) // Returning/entering again cannot dial.
+    }
+
+    @Test fun unavailableReturnCanCancelAnInFlightLocalResultRead() = runCase { owner, api ->
+        owner.begin("131"); owner.editGoal("조회"); owner.prepare(); owner.confirm("fake-test-key"); runCurrent()
+        api.resultGate = CompletableDeferred()
+        owner.dispatch(ServerTestCommand.FetchResult); runCurrent()
+        assertTrue(owner.server.state.value.resultLoading)
+        api.actionFailure = ApiHttpException(404, "not_found")
+        owner.dispatch(ServerTestCommand.Cancel); runCurrent()
+        assertTrue(owner.server.state.value.sessionUnavailable)
+        assertTrue(owner.returnAfterUnavailable())
+        runCurrent()
+        assertNull(owner.entry.value)
+        assertFalse(owner.server.state.value.hasSession)
+        assertEquals(listOf(SessionAction.Cancel), api.actions)
+    }
+
     @Test fun voiceAndButtonShareAReceiptEvenAfterAnOldRequestIsRestored() = runCase { owner, api ->
         owner.begin("131"); owner.editGoal("조회"); owner.prepare(); owner.confirm("test-key"); runCurrent()
         val request = UserRequest("question-1", "clarification", "어떤 업무인가요?", "2099-01-01T00:00:00Z",
@@ -193,6 +230,9 @@ private class LiveGateway : ServerTestGateway {
     val targets = mutableListOf<Pair<String, String>>()
     val actions = mutableListOf<SessionAction>()
     var createError: Throwable? = null
+    var actionFailure: Exception? = null
+    var closes = 0
+    var resultGate: CompletableDeferred<Unit>? = null
     val events = MutableSharedFlow<SessionEvent>(extraBufferCapacity = 32)
     override suspend fun health(): HealthResponse { healthChecks++; return healthValue }
     override suspend fun create(phone: String, goal: String): CreatedSession {
@@ -206,9 +246,13 @@ private class LiveGateway : ServerTestGateway {
         emitAll(events)
     }
     override suspend fun act(session: CreatedSession, action: SessionAction): ActionResponse {
-        actions += action; return ActionResponse(true)
+        actions += action
+        actionFailure?.let { throw it }
+        return ActionResponse(true)
     }
-    override suspend fun result(session: CreatedSession): SessionResult =
-        SessionResult.Completed(CompletedResult("success", "completed", "실제 결과", durationSec = 37))
-    override fun close() = Unit
+    override suspend fun result(session: CreatedSession): SessionResult {
+        resultGate?.await()
+        return SessionResult.Completed(CompletedResult("success", "completed", "실제 결과", durationSec = 37))
+    }
+    override fun close() { closes++ }
 }

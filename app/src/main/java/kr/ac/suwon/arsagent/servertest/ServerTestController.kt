@@ -136,7 +136,7 @@ class ServerTestController(
     }
 
     fun cancel() {
-        if (!state.value.active || state.value.busy || state.value.starting) return
+        if (!state.value.active || state.value.sessionUnavailable || state.value.busy || state.value.starting) return
         send(SessionAction.Cancel)
     }
 
@@ -149,7 +149,8 @@ class ServerTestController(
                 val response = client.act(activeSession, action)
                 if (action == SessionAction.Cancel) {
                     // The backend's accepted cancel response is sent only after finish().
-                    mutable.update { it.copy(snapshot = it.snapshot.copy(status = "ended", message = "서버에서 테스트를 종료했어요.", pendingRequest = null)) }
+                    mutable.update { it.copy(sessionUnavailable = false,
+                        snapshot = it.snapshot.copy(status = "ended", message = "서버에서 테스트를 종료했어요.", pendingRequest = null)) }
                     fetchResult()
                 } else mutable.update {
                     val snapshot = it.snapshot
@@ -169,7 +170,7 @@ class ServerTestController(
     }
 
     fun reconnect() {
-        if (closed || !state.value.active || state.value.starting || state.value.busy) return
+        if (closed || !state.value.active || state.value.sessionUnavailable || state.value.starting || state.value.busy) return
         val client = api ?: return
         val activeSession = session ?: return
         connectStream(client, activeSession)
@@ -227,7 +228,7 @@ class ServerTestController(
             try {
                 when (val result = client.result(activeSession)) {
                     is SessionResult.Completed -> {
-                        mutable.update { it.copy(result = result.data, streamConnected = false,
+                        mutable.update { it.copy(result = result.data, streamConnected = false, sessionUnavailable = false,
                             snapshot = it.snapshot.copy(status = "ended", pendingRequest = null,
                                 endReason = result.data.endReason, message = "최종 결과로 서버 종료를 확인했어요.")) }
                         stream?.cancel()
@@ -242,7 +243,7 @@ class ServerTestController(
     }
 
     fun reset() {
-        if (closed || state.value.active || state.value.starting || state.value.busy || state.value.creationUncertain) return
+        if (closed || (state.value.active && !state.value.sessionUnavailable) || state.value.starting || state.value.busy || state.value.creationUncertain) return
         owner.cancelChildren()
         stream = null
         api?.close(); api = null; session = null
@@ -252,7 +253,18 @@ class ServerTestController(
     private fun error(message: String) { mutable.update { it.copy(error = message) } }
     private fun uncertainDelivery(e: Exception): Boolean = e is ApiConnectionException || e is ApiProtocolException ||
         (e is ApiHttpException && (e.status in 500..599 || e.status == 408))
-    private fun fail(e: Exception) = error(when (e) {
+    private fun fail(e: Exception) {
+        val missing = e is ApiHttpException && e.status == 404 ||
+            e is ApiStreamException && e.closeCode in setOf(404, 4404)
+        val current = state.value
+        if (missing && current.hasSession && current.snapshot.status != "ended" && current.result == null) {
+            mutable.update { it.copy(sessionUnavailable = true, streamConnected = false,
+                snapshot = it.snapshot.copy(pendingRequest = null),
+                error = "세션을 찾을 수 없어 통화 상태를 확인할 수 없어요.") }
+            stream?.cancel(); stream = null
+            return
+        }
+        error(when (e) {
         is ApiHttpException -> when (e.status) {
             401 -> "인증에 실패했어요. API 키 또는 세션 인증을 확인해 주세요."
             409 -> "서버 상태가 바뀌었어요. 다른 테스트가 진행 중인지 확인해 주세요."
@@ -263,7 +275,8 @@ class ServerTestController(
         is ApiProtocolException -> "서버 응답 또는 보안 연결 주소가 API 계약과 달라요. 서버 담당자에게 확인해 주세요."
         is IllegalArgumentException -> "입력값 형식을 확인해 주세요."
         else -> "서버에 연결하지 못했어요. 네트워크를 확인해 주세요."
-    })
+        })
+    }
 
     override fun close() {
         closed = true

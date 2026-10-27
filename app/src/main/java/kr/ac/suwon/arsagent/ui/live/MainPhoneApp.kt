@@ -22,7 +22,7 @@ fun MainPhoneApp(phoneState: AppState, onPhoneAction: (Action) -> Unit, owner: L
         key(entry!!.generation) {
             if (server.hasSession || server.starting || server.creationUncertain)
                 LiveSessionScreen(entry!!, server, owner, voice, audio) {
-                    if (owner.returnAfterEnd()) onPhoneAction(Action.Tab(PhoneTab.Keypad))
+                    if (owner.returnAfterEnd() || owner.returnAfterUnavailable()) onPhoneAction(Action.Tab(PhoneTab.Keypad))
                 }
             else LivePurposeScreen(entry!!, server, owner, voice)
         }

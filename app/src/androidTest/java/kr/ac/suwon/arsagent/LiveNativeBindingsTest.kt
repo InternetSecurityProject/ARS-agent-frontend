@@ -1,6 +1,7 @@
 package kr.ac.suwon.arsagent
 
 import android.media.AudioManager
+import androidx.compose.runtime.*
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.ui.platform.LocalContext
@@ -9,8 +10,12 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.core.app.ApplicationProvider
 import kr.ac.suwon.arsagent.livecall.AndroidAudioRoutes
 import kr.ac.suwon.arsagent.livecall.AudioRouting
+import kr.ac.suwon.arsagent.livecall.LiveCallOwner
+import kr.ac.suwon.arsagent.livecall.LiveEntry
 import kr.ac.suwon.arsagent.servertest.ServerTestState
 import kr.ac.suwon.arsagent.servertest.voice.*
+import kr.ac.suwon.arsagent.ui.live.MainLiveBindings
+import kotlinx.coroutines.*
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
@@ -42,5 +47,27 @@ class LiveNativeBindingsTest {
             assertEquals(AudioManager.MODE_IN_COMMUNICATION, audio.mode)
         } finally { compose.runOnIdle { routing.close() } }
         assertEquals(before, audio.mode)
+    }
+
+    @Test fun missingSessionDisposesNativeBindingsWithoutMicOrRemoteCall() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val audio = context.getSystemService(AudioManager::class.java)
+        val before = audio.mode
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+        val owner = LiveCallOwner(scope, factory = { error("No server calls allowed") })
+        val state = mutableStateOf(ServerTestState())
+        var bound = false
+        try {
+            compose.setContent {
+                MainLiveBindings(LiveEntry("07000000000", 1), state.value, owner, remember { VoiceSessionRelay() }) { voice, routes ->
+                    SideEffect { bound = voice != null || routes != null }
+                }
+            }
+            compose.runOnIdle { assertTrue(bound); state.value = state.value.copy(sessionUnavailable = true) }
+            compose.runOnIdle {
+                assertFalse(bound)
+                assertEquals(before, audio.mode)
+            }
+        } finally { compose.runOnIdle { owner.close(); scope.cancel() } }
     }
 }
