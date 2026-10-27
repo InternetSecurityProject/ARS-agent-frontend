@@ -13,10 +13,12 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import kr.ac.suwon.arsagent.updates.TeamUpdates
+import kr.ac.suwon.arsagent.updates.prepareTeamUpdates
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        prepareTeamUpdates(application)
         enableEdgeToEdge()
         setContent {
             val model: AppViewModel = viewModel()

@@ -36,13 +36,24 @@ jobs:
         with:
           cache-read-only: ${{ github.event_name == 'pull_request' }}
           validate-wrappers: true
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
       - name: Lint and unit tests
         run: |
           python3 -m unittest discover -s scripts -p 'test_*.py'
+          node --test scripts/test_firebase_policy.cjs
           ./gradlew lintDebug testDebugUnitTest --stacktrace
       - name: Set increasing APK version
         shell: bash
-        run: echo "APP_VERSION_CODE=$((GITHUB_RUN_NUMBER * 100 + GITHUB_RUN_ATTEMPT))" >> "$GITHUB_ENV"
+        run: echo "APP_VERSION_CODE=$(node scripts/firebase_policy.cjs version)" >> "$GITHUB_ENV"
+      - name: Reject superseded feature builds
+        if: env.FIREBASE_DISTRIBUTE == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          export CURRENT_FEATURE_SHA="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/feat/compose-mvp" --jq .object.sha)"
+          node scripts/firebase_policy.cjs current
       - name: Build demo APK
         if: env.FIREBASE_DISTRIBUTE != 'true'
         run: ./gradlew assembleDebug -PappVersionCode="$APP_VERSION_CODE" --stacktrace
@@ -79,19 +90,16 @@ jobs:
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 14
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        if: env.FIREBASE_DISTRIBUTE == 'true'
-        with:
-          node-version: '22'
       - name: Install pinned Firebase CLI
         if: env.FIREBASE_DISTRIBUTE == 'true'
-        run: npm install --prefix "$RUNNER_TEMP/firebase-cli" --ignore-scripts --no-audit --no-fund firebase-tools@15.34.1
+        run: npm install --prefix "$RUNNER_TEMP/firebase-cli" --ignore-scripts --no-audit --no-fund firebase-tools@15.34.1 google-auth-library@10.5.0
       - name: Distribute to Firebase meokbodeul
         if: env.FIREBASE_DISTRIBUTE == 'true'
         env:
           FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
@@ -101,6 +109,9 @@ jobs:
           python3 scripts/firebase_config.py --output "$RUNNER_TEMP/ars-firebase-public.json" --credentials-out "$GOOGLE_APPLICATION_CREDENTIALS"
           # CLI never needs the original JSON environment variables after ADC is written.
           unset FIREBASE_SERVICE_ACCOUNT_JSON GOOGLE_SERVICES_JSON
+          export CURRENT_FEATURE_SHA="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/feat/compose-mvp" --jq .object.sha)"
+          node scripts/firebase_policy.cjs current
+          NODE_PATH="$RUNNER_TEMP/firebase-cli/node_modules" node scripts/firebase_policy.cjs preflight
           cd "$RUNNER_TEMP"
           "$RUNNER_TEMP/firebase-cli/node_modules/.bin/firebase" appdistribution:distribute \
             "$GITHUB_WORKSPACE/app/build/outputs/apk/debug/app-debug.apk" \

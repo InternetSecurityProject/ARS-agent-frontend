@@ -8,10 +8,11 @@ class UpdateCoordinatorTest {
         override var signedIn = false
         val checks = mutableListOf<(Result<String?>) -> Unit>()
         val logins = mutableListOf<(Result<Unit>) -> Unit>()
-        val installs = mutableListOf<(Result<Unit>) -> Unit>()
+        var installs = 0
+        var installerResult: Result<Unit> = Result.success(Unit)
         override fun check(done: (Result<String?>) -> Unit) { checks += done }
         override fun signIn(done: (Result<Unit>) -> Unit) { logins += done }
-        override fun install(done: (Result<Unit>) -> Unit) { installs += done }
+        override fun openInstaller(): Result<Unit> { installs++; return installerResult }
     }
 
     @Test fun unconfiguredBuildNeverOffersLoginOrCallsFirebase() {
@@ -41,11 +42,9 @@ class UpdateCoordinatorTest {
         gateway.checks.single()(Result.success("0.1.0 (12)"))
         assertEquals("0.1.0 (12)", owner.ui.value.version)
         assertEquals(UpdateStage.Available, owner.ui.value.stage)
-        assertTrue(gateway.installs.isEmpty())
+        assertEquals(0, gateway.installs)
         owner.install(); owner.install()
-        assertEquals(1, gateway.installs.size)
-        assertEquals(UpdateStage.Installing, owner.ui.value.stage)
-        gateway.installs.single()(Result.success(Unit))
+        assertEquals(1, gateway.installs)
         assertEquals(UpdateStage.Hidden, owner.ui.value.stage)
     }
 
@@ -57,7 +56,7 @@ class UpdateCoordinatorTest {
         gateway.checks.single()(Result.success("new"))
         assertEquals(UpdateStage.Hidden, owner.ui.value.stage)
         owner.install()
-        assertTrue(gateway.installs.isEmpty())
+        assertEquals(0, gateway.installs)
     }
 
     @Test fun olderCheckCannotReplaceNewerCheckAfterReturningHome() {
@@ -117,23 +116,23 @@ class UpdateCoordinatorTest {
     }
 
     @Test fun installationFailureDoesNotBlockAppAfterDismissal() {
-        val gateway = Gateway().apply { signedIn = true }
+        val gateway = Gateway().apply { signedIn = true; installerResult = Result.failure(IllegalStateException()) }
         val owner = UpdateCoordinator(gateway)
         owner.setEligible(true); gateway.checks.single()(Result.success("new"))
         owner.install()
-        gateway.installs.single()(Result.failure(IllegalStateException()))
         assertEquals(UpdateStage.Failed, owner.ui.value.stage)
         owner.dismiss()
         assertEquals(UpdateStage.Hidden, owner.ui.value.stage)
     }
 
-    @Test fun returningFromBackgroundDuringDownloadKeepsProgressModalUntilCompletion() {
+    @Test fun installerHandoffCannotLeaveAnUncancelableDownloadBlockingTheApp() {
         val gateway = Gateway().apply { signedIn = true }
         val owner = UpdateCoordinator(gateway)
         owner.setEligible(true); gateway.checks.single()(Result.success("new"))
         owner.install(); owner.setEligible(false); owner.setEligible(true)
-        assertEquals(UpdateStage.Installing, owner.ui.value.stage)
-        gateway.installs.single()(Result.success(Unit))
         assertEquals(UpdateStage.Hidden, owner.ui.value.stage)
+        assertEquals(1, gateway.installs)
+        owner.install()
+        assertEquals(1, gateway.installs)
     }
 }

@@ -9,10 +9,11 @@ interface UpdateGateway {
     val signedIn: Boolean
     fun check(done: (Result<String?>) -> Unit)
     fun signIn(done: (Result<Unit>) -> Unit)
-    fun install(done: (Result<Unit>) -> Unit)
+    /** Opens Firebase's installer page synchronously; never starts an in-process APK download. */
+    fun openInstaller(): Result<Unit>
 }
 
-enum class UpdateStage { Hidden, Consent, Checking, SigningIn, Available, Installing, Failed }
+enum class UpdateStage { Hidden, Consent, Checking, SigningIn, Available, Failed }
 data class UpdateUi(val stage: UpdateStage = UpdateStage.Hidden, val version: String = "")
 
 /** Independent of call state: its caller grants eligibility only while idle and foreground. */
@@ -66,15 +67,9 @@ class UpdateCoordinator(private val gateway: UpdateGateway, private val now: () 
 
     fun install() {
         if (closed || !eligible || busy || ui.value.stage != UpdateStage.Available) return
-        busy = true
-        busyStage = UpdateStage.Installing
         deferred = true
-        mutable.value = UpdateUi(UpdateStage.Installing)
-        gateway.install { result ->
-            busy = false
-            if (closed || !eligible) return@install
-            mutable.value = if (result.isSuccess) UpdateUi() else UpdateUi(UpdateStage.Failed)
-        }
+        mutable.value = UpdateUi()
+        if (gateway.openInstaller().isFailure) mutable.value = UpdateUi(UpdateStage.Failed)
     }
 
     fun dismiss() {

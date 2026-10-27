@@ -20,14 +20,14 @@ class TeamUpdatesUiTest {
         compose.onNodeWithText("팀 앱 업데이트 안내").assertDoesNotExist()
         compose.runOnIdle { assertEquals(0, logins); assertTrue(dismissed) }
     }
-    @Test fun updateNeedsExplicitInstallAndShowsProgress() {
+    @Test fun updateNeedsExplicitHandoffAndLeavesNoDownloadModal() {
         var ui by mutableStateOf(UpdateUi(UpdateStage.Available, "0.1.0 (12)"))
         var installs = 0
-        compose.setContent { UpdatePrompt(ui, {}, { installs++; ui = UpdateUi(UpdateStage.Installing) }, {}) }
+        compose.setContent { UpdatePrompt(ui, {}, { installs++; ui = UpdateUi() }, {}) }
         compose.onNodeWithText("0.1.0 (12)", substring = true).assertIsDisplayed()
         compose.runOnIdle { assertEquals(0, installs) }
         compose.onNodeWithText("업데이트").performClick()
-        compose.onNodeWithText("업데이트 준비 중").assertIsDisplayed()
+        compose.onNodeWithText("새 버전이 있어요").assertDoesNotExist()
         compose.runOnIdle { assertEquals(1, installs) }
     }
 }

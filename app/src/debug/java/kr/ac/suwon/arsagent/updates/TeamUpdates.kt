@@ -1,6 +1,8 @@
 package kr.ac.suwon.arsagent.updates
 
 import android.app.Application
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.runtime.*
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.Lifecycle
@@ -12,7 +14,8 @@ import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
 import com.google.firebase.appdistribution.FirebaseAppDistribution
 
-private class FirebaseUpdateGateway(private val sdk: FirebaseAppDistribution) : UpdateGateway {
+private class FirebaseUpdateGateway(private val app: Application, private val sdk: FirebaseAppDistribution,
+    private val appId: String) : UpdateGateway {
     override val enabled = true
     override val signedIn get() = sdk.isTesterSignedIn
     override fun signIn(done: (Result<Unit>) -> Unit) {
@@ -24,9 +27,9 @@ private class FirebaseUpdateGateway(private val sdk: FirebaseAppDistribution) : 
             done(Result.success(release?.let { "${it.displayVersion} (${it.versionCode})" }))
         }.addOnFailureListener { done(Result.failure(it)) }
     }
-    override fun install(done: (Result<Unit>) -> Unit) {
-        sdk.updateApp().addOnSuccessListener { done(Result.success(Unit)) }
-            .addOnFailureListener { done(Result.failure(it)) }
+    override fun openInstaller(): Result<Unit> = runCatching {
+        val url = Uri.parse("https://appdistribution.firebase.google.com/testerapps/${Uri.encode(appId)}")
+        app.startActivity(Intent(Intent.ACTION_VIEW, url).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 }
 
@@ -35,11 +38,15 @@ private object DisabledUpdates : UpdateGateway {
     override val signedIn = false
     override fun check(done: (Result<String?>) -> Unit) = Unit
     override fun signIn(done: (Result<Unit>) -> Unit) = Unit
-    override fun install(done: (Result<Unit>) -> Unit) = Unit
+    override fun openInstaller(): Result<Unit> = Result.failure(IllegalStateException("Updates not configured"))
 }
 
-class TeamUpdateViewModel(app: Application) : AndroidViewModel(app) {
-    val owner = UpdateCoordinator(runCatching {
+private var preparedGateway: UpdateGateway? = null
+
+/** Must run before MainActivity's first resume so the SDK sees its lifecycle callbacks. */
+fun prepareTeamUpdates(app: Application) {
+    if (preparedGateway != null) return
+    preparedGateway = runCatching {
         val config = app.assets.open("firebase/firebase-team.json").bufferedReader().use {
             TeamFirebaseConfig.parse(it.readText(), app.packageName)
         } ?: return@runCatching DisabledUpdates
@@ -48,8 +55,12 @@ class TeamUpdateViewModel(app: Application) : AndroidViewModel(app) {
         if (FirebaseApp.getApps(app).isEmpty()) FirebaseApp.initializeApp(app, options)
         // Never mix another Firebase project's cached singleton with this team's configuration.
         if (FirebaseApp.getInstance().options.applicationId != config.application_id) DisabledUpdates
-        else FirebaseUpdateGateway(FirebaseAppDistribution.getInstance())
-    }.getOrDefault(DisabledUpdates))
+        else FirebaseUpdateGateway(app, FirebaseAppDistribution.getInstance(), config.application_id)
+    }.getOrDefault(DisabledUpdates)
+}
+
+class TeamUpdateViewModel(app: Application) : AndroidViewModel(app) {
+    val owner = UpdateCoordinator(preparedGateway ?: DisabledUpdates)
     override fun onCleared() { owner.close() }
 }
 
