@@ -23,7 +23,7 @@ import kr.ac.suwon.arsagent.model.*
 import kr.ac.suwon.arsagent.ui.ArsApp
 import kr.ac.suwon.arsagent.ui.ArsTheme
 
-/** Debug launcher only: no ViewModel, timers, recording, or real call actions. */
+/** Debug launcher only: visual effects run, but no ViewModel, call-state timers, recording or real calls. */
 class ScreenGalleryActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -96,7 +96,7 @@ fun ScreenGallery(initiallyShowPicker: Boolean = true, onExit: () -> Unit = {}) 
                 title = { Text("화면 미리보기") },
                 text = {
                     Column {
-                        Text("화면을 선택하면 바로 표시돼요. 자동 진행과 화면 안 버튼은 동작하지 않아요.",
+                        Text("화면 상태와 버튼은 고정이고, 점 같은 시각 효과만 재생돼요.",
                             style = MaterialTheme.typography.bodyMedium)
                         Spacer(Modifier.height(12.dp))
                         Row(Modifier.fillMaxWidth().selectableGroup(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {

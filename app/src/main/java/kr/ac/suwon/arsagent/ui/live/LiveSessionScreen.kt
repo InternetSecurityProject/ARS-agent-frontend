@@ -29,6 +29,7 @@ internal fun LiveSessionScreen(entry: LiveEntry, server: ServerTestState, owner:
     val controls = ServerCallControls(
         elapsedSeconds = entry.elapsedSeconds.takeUnless { server.sessionUnavailable },
         stateUnavailable = server.sessionUnavailable,
+        progressConnected = server.canSend,
         endEnabled = server.active && !server.sessionUnavailable && !server.starting && !server.busy,
         arsEnabled = voice?.arsEnabled == true,
         arsAvailable = voice != null && server.active && server.snapshot.status != "connected_to_agent",

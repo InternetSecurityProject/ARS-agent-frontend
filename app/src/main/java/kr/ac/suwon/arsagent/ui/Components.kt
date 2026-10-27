@@ -87,7 +87,10 @@ fun ProgressCard(modifier: Modifier = Modifier, scrollable: Boolean = true, cont
     val scrollState = rememberScrollState()
     Column(modifier.shadow(8.dp, RoundedCornerShape(20.dp)).background(Color.White, RoundedCornerShape(20.dp))
         .padding(16.dp).then(if (scrollable) Modifier.verticalScroll(scrollState) else Modifier),
-        verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
+        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        // Scope the paragraph font to this card. Explicit title/label/action styles stay unchanged.
+        ProvideTextStyle(LocalTextStyle.current.copy(fontFamily = ProgressBodyFont)) { content() }
+    }
 }
 
 @Composable
@@ -100,7 +103,10 @@ fun VoiceInput(value: String, placeholder: String, onValue: (String) -> Unit, on
         BasicTextField(value, onValue, enabled = inputEnabled, textStyle = MaterialTheme.typography.bodyLarge.copy(color = ArsColors.Ink),
             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = ImeAction.Done),
             modifier = Modifier.weight(1f).semantics { contentDescription = "음성 대신 텍스트 입력" },
-            decorationBox = { inner -> Box { if (value.isEmpty()) Text(placeholder, color = ArsColors.Secondary); inner() } })
+            decorationBox = { inner -> Box {
+                if (value.isEmpty()) Text(placeholder, color = ArsColors.Secondary, style = MaterialTheme.typography.bodyLarge)
+                inner()
+            } })
         Spacer(Modifier.width(8.dp))
         Box(Modifier.size(48.dp).background(ArsColors.Blue, CircleShape).clip(CircleShape)
             .clickable(enabled = microphoneEnabled, role = Role.Button, onClick = onExample).semantics { contentDescription = microphoneDescription },

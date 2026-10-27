@@ -21,6 +21,7 @@ data class ServerCallControls(
     val onRoute: (AudioRoute) -> Unit = {},
     val onKey: (Char) -> Unit = {},
     val stateUnavailable: Boolean = false,
+    val progressConnected: Boolean = false,
     val extras: @Composable () -> Unit = {},
 )
 

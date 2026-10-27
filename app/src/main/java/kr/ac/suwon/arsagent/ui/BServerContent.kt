@@ -1,6 +1,7 @@
 package kr.ac.suwon.arsagent.ui
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.sp
@@ -9,11 +10,15 @@ import kr.ac.suwon.arsagent.model.BCallData
 /** Reuses the existing progress card; content comes only from the supplied server presentation. */
 @Composable
 internal fun BServerContent(data: BCallData, choiceInput: CandidateChoiceInput? = null, choiceSubmitted: Boolean = false,
-    answerInput: ServerAnswerInput? = null) {
+    answerInput: ServerAnswerInput? = null, listeningConnected: Boolean = true) {
     val pending = data.pendingRequest
-    if (!data.isEnded) Text(data.title, style = MaterialTheme.typography.titleLarge)
+    if (!data.isEnded) {
+        if (data.status == "listening") ListeningProgressTitle(data.animateListening(listeningConnected))
+        else Text(data.title, style = MaterialTheme.typography.titleLarge)
+    }
     if (data.title == "진행 상태 확인 중") {
-        Text("서버 상태 · ${data.status}", color = ArsColors.Secondary, style = MaterialTheme.typography.bodyMedium)
+        Text("서버 상태 · ${data.status}", color = ArsColors.Secondary,
+            style = MaterialTheme.typography.bodyMedium.copy(fontFamily = LocalTextStyle.current.fontFamily))
     }
     if (pending != null) {
         if (pending.kind == "clarification") {
@@ -24,7 +29,8 @@ internal fun BServerContent(data: BCallData, choiceInput: CandidateChoiceInput? 
             return
         }
         Text(pending.message)
-        Text("입력 화면 연결 전이에요.", color = ArsColors.Secondary, style = MaterialTheme.typography.bodyMedium)
+        Text("입력 화면 연결 전이에요.", color = ArsColors.Secondary,
+            style = MaterialTheme.typography.bodyMedium.copy(fontFamily = LocalTextStyle.current.fontFamily))
         return
     }
     val hasSummary = !data.summary.isNullOrBlank()

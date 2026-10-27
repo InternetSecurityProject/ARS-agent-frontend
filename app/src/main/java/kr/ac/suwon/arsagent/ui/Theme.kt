@@ -26,6 +26,9 @@ private val Noto = FontFamily(
     Font(R.font.noto_sans_kr, FontWeight.Bold, variationSettings = FontVariation.Settings(FontVariation.weight(700))),
 )
 
+// B04's paragraph face only; the app-wide typography stays Noto Sans KR.
+internal val ProgressBodyFont = FontFamily(Font(R.font.gowun_batang_regular))
+
 @Composable
 fun ArsTheme(content: @Composable () -> Unit) {
     MaterialTheme(

@@ -12,6 +12,18 @@ class BCallDataTest {
     private val request = UserRequest("r7", "secure_input", "계좌번호를 입력해 주세요", "2099-01-01T00:00:00Z",
         label = "계좌번호", terminator = "#")
 
+    @Test fun listeningDotsRequireAConnectedListeningStateWithoutPendingInput() {
+        val listening = BCallData.from(SessionSnapshot("listening", "듣는 중"))
+        assertTrue(listening.animateListening(connected = true))
+        assertFalse(listening.animateListening(connected = false))
+        assertFalse(BCallData.from(SessionSnapshot("listening", "입력 대기", pendingRequest = request)).animateListening(true))
+        listOf("dialing", "selecting", "awaiting_user", "listening_result", "agent_done", "waiting_agent", "connected_to_agent", "ended", "unknown").forEach {
+            assertFalse(it, BCallData.from(SessionSnapshot(it, "진행")).animateListening(true))
+        }
+        assertFalse(BCallData.from(SessionSnapshot("listening", "이전 안내"),
+            CompletedResult("success", "completed", durationSec = 12)).animateListening(true))
+    }
+
     @Test fun selectingUsesSelectedLabelsAndMostRecentArsCaptionNotDemoContent() {
         val data = BCallData.from(SessionSnapshot("selecting", "서버가 보낸 진행 안내", goal = "결제일 바꾸기", path = path,
             captions = listOf(Caption(1, "ars", "처음 안내", "now"), Caption(2, "ars", "결제일 변경은 2번", "now"),

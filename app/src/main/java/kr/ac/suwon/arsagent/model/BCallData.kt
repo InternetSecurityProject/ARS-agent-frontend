@@ -18,6 +18,8 @@ data class BCallData(
     val isEnded: Boolean,
     val durationSeconds: Int?,
 ) {
+    fun animateListening(connected: Boolean): Boolean = connected && !isEnded && status == "listening" && pendingRequest == null
+
     companion object {
         /** Pass the latest snapshot every time; reconnect snapshots replace rather than append. */
         fun from(snapshot: SessionSnapshot, result: CompletedResult? = null): BCallData {

@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -40,7 +41,8 @@ internal fun ServerChoiceContent(request: UserRequest, input: CandidateChoiceInp
     }
     Text(request.message)
     if (request.reason == "critical_action") {
-        Text("중요한 선택이에요. 버튼으로 선택해 주세요.", color = ArsColors.Secondary, style = MaterialTheme.typography.bodyMedium)
+        Text("중요한 선택이에요. 버튼으로 선택해 주세요.", color = ArsColors.Secondary,
+            style = MaterialTheme.typography.bodyMedium.copy(fontFamily = LocalTextStyle.current.fontFamily))
     }
     val note = when {
         choice.options.isEmpty() -> "선택 가능한 메뉴가 없어요."
@@ -50,7 +52,8 @@ internal fun ServerChoiceContent(request: UserRequest, input: CandidateChoiceInp
         !input.canSend -> "연결 상태를 확인하고 있어요."
         else -> "시간 내 선택해 주세요."
     }
-    Text(note, color = ArsColors.Secondary, style = MaterialTheme.typography.bodyMedium)
+    Text(note, color = ArsColors.Secondary,
+        style = MaterialTheme.typography.bodyMedium.copy(fontFamily = LocalTextStyle.current.fontFamily))
     choice.options.forEach { option ->
         val enabled = input?.canSend == true && !expired && !submitted && choice.select(option.key, Instant.now()) != null
         Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).background(ArsColors.Neutral, RoundedCornerShape(12.dp))

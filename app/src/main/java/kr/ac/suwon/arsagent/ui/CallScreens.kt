@@ -155,7 +155,8 @@ private fun AgentContent(state: AppState, dispatch: (Action) -> Unit, serverData
         return
     }
     if (serverData != null) {
-        BServerContent(serverData, choiceInput, choiceSubmitted, answerInput)
+        BServerContent(serverData, choiceInput, choiceSubmitted, answerInput,
+            listeningConnected = liveControls?.progressConnected ?: true)
         liveControls?.extras?.invoke()
         return
     }
@@ -174,6 +175,7 @@ private fun AgentContent(state: AppState, dispatch: (Action) -> Unit, serverData
             Text("연결되면 Agent가 메뉴를 찾아요.", color = ArsColors.Secondary)
         }
         Phase.Listening -> {
+            ListeningProgressTitle(running = true)
             CardEyebrow("ARS 안내")
             Text("“단기예보는 1번, 현재 날씨는 3번…”", fontSize = 17.sp, lineHeight = 28.sp)
         }
@@ -192,7 +194,8 @@ private fun AgentContent(state: AppState, dispatch: (Action) -> Unit, serverData
         }
         Phase.Choice -> {
             Text("어떤 정보를 원하시나요?", style = MaterialTheme.typography.titleLarge)
-            Text("시간 내 선택해 주세요.", color = ArsColors.Secondary, style = MaterialTheme.typography.bodyMedium)
+            Text("시간 내 선택해 주세요.", color = ArsColors.Secondary,
+                style = MaterialTheme.typography.bodyMedium.copy(fontFamily = LocalTextStyle.current.fontFamily))
             listOf("1" to "오늘·내일·모레 단기예보", "3" to "현재 날씨", "5" to "중기 10일 예보").forEach { (key, label) ->
                 Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).background(ArsColors.Neutral, RoundedCornerShape(12.dp))
                     .clickable(role = Role.Button) { dispatch(Action.Select(key)) }.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -206,7 +209,7 @@ private fun AgentContent(state: AppState, dispatch: (Action) -> Unit, serverData
             VoiceInput(state.answerDraft, "지역을 말씀해 주세요", { dispatch(Action.AnswerChanged(it)) },
                 { dispatch(Action.AnswerChanged("수원시 날씨가 궁금해요")) })
             Text("답변을 듣고 있어요. 내용이 확인되면 자동으로 진행해요.", color = ArsColors.Secondary,
-                style = MaterialTheme.typography.bodyMedium)
+                style = MaterialTheme.typography.bodyMedium.copy(fontFamily = LocalTextStyle.current.fontFamily))
         }
         Phase.WaitingAgent -> {
             Text("상담원 연결을 기다리고 있어요", style = MaterialTheme.typography.titleLarge)
