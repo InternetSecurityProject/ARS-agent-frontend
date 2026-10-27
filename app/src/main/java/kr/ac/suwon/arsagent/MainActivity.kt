@@ -12,6 +12,7 @@ import kr.ac.suwon.arsagent.ui.live.MainPhoneApp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
+import kr.ac.suwon.arsagent.updates.TeamUpdates
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -29,7 +30,7 @@ class MainActivity : ComponentActivity() {
                 onDispose { if (!wasSecure) window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE) }
             }
             MainLiveBindings(entry, server, calls.owner, calls.sessions) { voice, audio ->
-                MainPhoneApp(state, model::dispatch, calls.owner, voice, audio)
+                MainPhoneApp(state, model::dispatch, calls.owner, voice, audio) { eligible -> TeamUpdates(eligible) }
             }
         }
     }

@@ -12,7 +12,9 @@ android {
         applicationId = "kr.ac.suwon.arsagent"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
+        versionCode = providers.gradleProperty("appVersionCode").orElse("1").get().toInt().also {
+            require(it in 1..2_100_000_000) { "appVersionCode is outside the Android range" }
+        }
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -61,6 +63,8 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
+    // Self-update implementation must never ship in a Play/release build.
+    debugImplementation("com.google.firebase:firebase-appdistribution:16.0.0-beta21")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")

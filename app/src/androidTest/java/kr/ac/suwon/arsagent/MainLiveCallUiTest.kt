@@ -58,6 +58,27 @@ class MainLiveCallUiTest {
         assertTrue(gateway.targets.isEmpty())
     }
 
+    @Test fun updateSlotIsEligibleOnlyOnEmptyRealHome() {
+        phone.value = AppState()
+        var eligible = false
+        compose.setContent {
+            MainPhoneApp(phone.value, { phone.value = phone.value.reduce(it) }, owner,
+                updateContent = { value -> SideEffect { eligible = value } })
+        }
+        compose.runOnIdle { assertTrue(eligible); phone.value = AppState(number = "07011112222") }
+        compose.runOnIdle { assertFalse(eligible) }
+        compose.onNodeWithText("ARS Agent 전화").performClick()
+        compose.runOnIdle { assertFalse(eligible) }
+        compose.onNodeWithText("취소").performClick()
+        compose.runOnIdle { phone.value = AppState(screen = Screen.Detail) }
+        compose.runOnIdle { assertFalse(eligible); phone.value = AppState(screen = Screen.Call) }
+        compose.runOnIdle { assertFalse(eligible); phone.value = AppState() }
+        compose.onNodeWithText("실제 ARS").performClick()
+        compose.runOnIdle { assertFalse(eligible) }
+        compose.onNodeWithText("UI 데모").performClick()
+        compose.runOnIdle { assertFalse(eligible); assertTrue(gateway.targets.isEmpty()) }
+    }
+
     @Test fun preparationDoesNotDialAndOnlyExplicitConfirmationCreatesOneSession() {
         content(); purpose()
         compose.runOnIdle { assertTrue(gateway.targets.isEmpty()) }

@@ -13,7 +13,8 @@ import kr.ac.suwon.arsagent.ui.*
 /** Composable test boundary: rendering this never opens a network connection or microphone. */
 @Composable
 fun MainPhoneApp(phoneState: AppState, onPhoneAction: (Action) -> Unit, owner: LiveCallOwner,
-    voice: ServerVoiceUi? = null, audio: LiveAudioUi? = null) {
+    voice: ServerVoiceUi? = null, audio: LiveAudioUi? = null,
+    updateContent: @Composable (Boolean) -> Unit = {}) {
     val entry by owner.entry.collectAsStateWithLifecycle()
     val server by owner.server.state.collectAsStateWithLifecycle()
     var real by rememberSaveable { mutableStateOf(true) }
@@ -45,4 +46,5 @@ fun MainPhoneApp(phoneState: AppState, onPhoneAction: (Action) -> Unit, owner: L
                 }
             }, confirmButton = { TextButton({ modes = false }) { Text("닫기") } })
     }
+    updateContent(real && !modes && entry == null && phoneState.screen == Screen.Home && phoneState.number.isBlank())
 }

@@ -10,3 +10,6 @@ keystore.properties
 .DS_Store
 .superpowers/
 captures/
+google-services.json
+app/src/debug/assets/firebase/
+__pycache__/
