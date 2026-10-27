@@ -163,6 +163,30 @@ class MainLiveCallUiTest {
         compose.onNodeWithText("실제 ARS").assertIsDisplayed()
         compose.runOnIdle { assertEquals(listOf(SessionAction.Cancel), gateway.actions) }
     }
+
+    @Test fun uncertainActionCanReconnectAnOpenStreamWithoutResendingOldInput() {
+        content(); start()
+        compose.runOnIdle { gateway.actionFailure = ApiConnectionException() }
+        val oldRequest = UserRequest("uncertain-ui", "clarification", "업무를 선택해 주세요", "2099-01-01T00:00:00Z",
+            options = listOf(MenuOption("3", "기존 업무")))
+        request(oldRequest)
+        compose.onNodeWithText("기존 업무").performScrollTo().performClick()
+        compose.waitUntil(5_000) { owner.server.state.value.actionUncertain }
+        compose.runOnIdle {
+            assertTrue(owner.server.state.value.streamConnected)
+            gateway.actionFailure = null
+            // The reconnected server may repeat the same unanswered request.
+            gateway.reconnectSnapshot = SessionSnapshot("awaiting_user", "새 스냅샷", pendingRequest = oldRequest)
+        }
+        compose.onNodeWithText("상태 다시 연결").performScrollTo().assertIsDisplayed().performClick()
+        compose.waitUntil(5_000) { gateway.streams == 2 && owner.server.state.value.streamConnected && !owner.server.state.value.actionUncertain }
+        compose.runOnIdle { assertEquals(1, gateway.actions.size); assertFalse(owner.canRespond("uncertain-ui")) }
+        compose.onNodeWithText("기존 업무").assertIsNotEnabled()
+        request(oldRequest.copy(requestId = "fresh-ui", options = listOf(MenuOption("4", "새 업무"))))
+        compose.onNodeWithText("새 업무").performScrollTo().assertIsEnabled().performClick()
+        compose.waitUntil(5_000) { gateway.actions.size == 2 }
+        compose.runOnIdle { assertEquals(SessionAction.Select("fresh-ui", "4"), gateway.actions.last()) }
+    }
 }
 
 private class MainUiGateway : ServerTestGateway {
@@ -170,6 +194,9 @@ private class MainUiGateway : ServerTestGateway {
     val actions = mutableListOf<SessionAction>()
     val bus = MutableSharedFlow<SessionEvent>(extraBufferCapacity = 32)
     var cancelGate: CompletableDeferred<Unit>? = null
+    var actionFailure: Exception? = null
+    var streams = 0
+    var reconnectSnapshot: SessionSnapshot? = null
     override suspend fun health() = HealthResponse("clawops", "fake", "fake")
     override suspend fun create(phone: String, goal: String): CreatedSession {
         targets += phone to goal
@@ -177,11 +204,13 @@ private class MainUiGateway : ServerTestGateway {
             "wss://example.test/v1/sessions/ui-session/audio", phone, "dialing", goal)
     }
     override fun events(session: CreatedSession) = flow {
-        emit(SessionEvent.Snapshot("now", SessionSnapshot("listening", "서버에서 받은 실제 진행")))
+        streams++
+        emit(SessionEvent.Snapshot("now", reconnectSnapshot ?: SessionSnapshot("listening", "서버에서 받은 실제 진행")))
         emitAll(bus)
     }
     override suspend fun act(session: CreatedSession, action: SessionAction): ActionResponse {
         actions += action
+        actionFailure?.let { throw it }
         if (action == SessionAction.Cancel) cancelGate?.await()
         return ActionResponse(true)
     }

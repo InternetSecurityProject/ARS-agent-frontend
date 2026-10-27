@@ -33,9 +33,9 @@
 
 **Interfaces:** `LiveCallOwner(scope, factory, monotonicSeconds)` exposes `entry: StateFlow<LiveEntry?>`, `server: ServerTestController`, `begin(number)`, `editGoal(text)`, `prepare()`, `dismissConfirmation()`, `confirm(key)`, `cancelPurpose()`, `returnAfterEnd()`, `close()`. `LiveEntry` exposes number, goal, confirmation and generation; never a key/token. Confirmation captures the current number/goal and is consumed before `server.start(..., RealCall)`.
 
-- [ ] Write owner tests: no create on entry/edit/prepare/dismiss; exact confirmed target once; stale/blank input rejected; 010 blocked; failed/uncertain creation cannot accidentally restart; active/ended return guards; elapsed only after first connected status, final duration authoritative.
-- [ ] Run new tests and observe RED for missing behavior, then share runtime and implement owner. Preserve existing transport semantics and test fixtures.
-- [ ] Run full `testDebugUnitTest`; expect 0 failures. Add local MockWebServer owner→controller request/action/event evidence. Commit scoped task only after tests pass.
+- [x] Write owner tests: no create on entry/edit/prepare/dismiss; exact confirmed target once; stale/blank input rejected; 010 blocked; failed/uncertain creation cannot accidentally restart; active/ended return guards; elapsed only after first connected status, final duration authoritative.
+- [x] Run new tests and observe RED for missing behavior, then share runtime and implement owner. Preserve existing transport semantics and test fixtures.
+- [x] Run full `testDebugUnitTest`; expect 0 failures. Add local MockWebServer owner→controller request/action/event evidence. Commit scoped task only after tests pass.
 
 ### Task 2: main entry and existing B/C/D frame wiring
 
@@ -43,10 +43,10 @@
 
 **Interfaces:** `MainPhoneApp(phoneState,onPhoneAction,owner,voice:ServerVoiceUi?,audio:LiveAudioUi?)` is injectible and has no native microphone/network side effect from rendering. `MainCallViewModel` owns one owner and `VoiceSessionRelay`. Optional `ServerCallControls` supplies live readiness/errors/recovery/voice/control callbacks and elapsed seconds to the existing frame; absent controls preserve the prepared renderer and demo/gallery behavior. Optional `ServerAnswerInput` supplies request-bound free text/STT callbacks without enabling critical/secure speech.
 
-- [ ] Write existing-main-entry RED for real/default mode and owner-injected UI RED for purpose→confirmation→B/C/D, secret clearing, cancel, no automatic create, legacy normal-call/demo/gallery, compact layouts, expiry, critical/secure, key taps, recovery and honest end handling.
-- [ ] Connect live Agent entry from existing keypad/contact/history actions. Reuse top scenario-menu location for real/demo selection, default real, disable mode changes while a live flow exists. Keep A AppState unchanged until explicit return.
-- [ ] Implement existing B01 geometry with real mic semantics, text pause opening confirmation only once, ephemeral key input and immutable target/goal consent. Bind B/C/D to controller snapshots/results and safe callbacks. Make end/recovery server-authoritative; no fake demo ticks/answers. Bind main FLAG_SECURE for live flow only.
-- [ ] Run full unit/UI suites with fake speech/local transport; expect no test calls to production. Commit scoped task only after verification.
+- [x] Write existing-main-entry RED for real/default mode and owner-injected UI RED for purpose→confirmation→B/C/D, secret clearing, cancel, no automatic create, legacy normal-call/demo/gallery, compact layouts, expiry, critical/secure, key taps, recovery and honest end handling.
+- [x] Connect live Agent entry from existing keypad/contact/history actions. Reuse top scenario-menu location for real/demo selection, default real, disable mode changes while a live flow exists. Keep A AppState unchanged until explicit return.
+- [x] Implement existing B01 geometry with real mic semantics, text pause opening confirmation only once, ephemeral key input and immutable target/goal consent. Bind B/C/D to controller snapshots/results and safe callbacks. Make end/recovery server-authoritative; no fake demo ticks/answers. Bind main FLAG_SECURE for live flow only.
+- [x] Run full unit/UI suites with fake speech/local transport; expect no test calls to production. Commit scoped task only after verification.
 
 ### Task 3: voice/audio routing, final verification and handoff
 
@@ -54,7 +54,7 @@
 
 **Interfaces:** `AudioRouting` uses an injected route device to expose supported/current `AudioRoute`, activate/select/restore, and errors; `AndroidAudioRoutes` implements native earpiece/speaker selection and restores previous routing/mode. `LiveAudioUi` carries native results/callbacks to task 2. Main binding owns foreground lifecycle, routing and the existing `ServerVoiceBinding` for one live entry; server-test defaults remain compatible.
 
-- [ ] Write RED tests for unsupported route rejection/restoration, purpose recognition after consent/permission, question→TTS→STT→one answer, handoff/background invalidation, live control callbacks and server-ending without local false completion.
-- [ ] Implement native routing with verified Android APIs; route TTS/ARS as communication speech only in main live flow. Keep ARS suppression/secure and critical guards unchanged. No microphone starts on ordinary A/gallery entry.
-- [ ] Run full JVM/UI suites, lint and debug/release APK; inspect manifests for only needed permissions and no secret values. Compare representative A/gallery/live layouts. Perform one fresh read-only whole-change review and fix Critical/Important findings with RED→GREEN.
-- [ ] Install final APK in emulator; open main entry and verify purpose/confirmation only with no real key/dial. Leave actual dialing and deployed end-to-end speech/audio to user. Document any test flake and unverified device limits. Commit local changes but do not push/merge in this request.
+- [x] Write RED tests for unsupported route rejection/restoration, purpose recognition after consent/permission, question→TTS→STT→one answer, handoff/background invalidation, live control callbacks and server-ending without local false completion.
+- [x] Implement native routing with verified Android APIs; route TTS/ARS as communication speech only in main live flow. Keep ARS suppression/secure and critical guards unchanged. No microphone starts on ordinary A/gallery entry.
+- [x] Run full JVM/UI suites, lint and debug/release APK; inspect manifests for only needed permissions and no secret values. Compare representative A/gallery/live layouts. Perform one fresh read-only whole-change review and fix Critical/Important findings with RED→GREEN.
+- [x] Install final APK in emulator; open main entry and verify purpose/confirmation only with no real key/dial. Leave actual dialing and deployed end-to-end speech/audio to user. Document any test flake and unverified device limits. Commit local changes but do not push/merge in this request.

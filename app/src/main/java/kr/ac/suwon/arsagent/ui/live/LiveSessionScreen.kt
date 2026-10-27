@@ -67,7 +67,7 @@ private fun LiveSessionExtras(server: ServerTestState, voice: ServerVoiceUi?, au
     compactInput: Boolean, owner: LiveCallOwner) {
     server.error?.let { Text(it, color = ArsColors.Red) }
     if (server.busy) Text("요청을 전달하고 있어요.", color = ArsColors.Secondary)
-    if (server.hasSession && server.active && !server.streamConnected) {
+    if (server.hasSession && server.active && (!server.streamConnected || server.actionUncertain)) {
         Text("서버 상태를 다시 확인해 주세요.", color = ArsColors.Secondary)
         TextButton({ owner.dispatch(ServerTestCommand.Reconnect) }, enabled = !server.busy) { Text("상태 다시 연결") }
     }
