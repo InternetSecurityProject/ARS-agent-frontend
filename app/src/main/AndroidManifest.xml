@@ -1,7 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Network client is prepared but is not connected to the UI demo. No dialer/mic/contact permissions. -->
+    <!-- Server-based Agent calls; normal-phone demo never places SIM calls or reads contacts. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <queries>
+        <intent><action android:name="android.speech.RecognitionService" /></intent>
+        <intent><action android:name="android.intent.action.TTS_SERVICE" /></intent>
+    </queries>
     <application android:allowBackup="false" android:label="ARS Agent 데모"
         android:icon="@drawable/ic_launcher" android:supportsRtl="true"
         android:theme="@style/Theme.ArsAgent">

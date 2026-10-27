@@ -8,6 +8,7 @@ import kotlinx.serialization.json.*
 import kr.ac.suwon.arsagent.data.api.apiJson
 import kr.ac.suwon.arsagent.model.BCallData
 import kr.ac.suwon.arsagent.model.CandidateChoice
+import kr.ac.suwon.arsagent.livecall.LiveCallOwner
 import java.time.Instant
 import okhttp3.*
 import okhttp3.mockwebserver.*
@@ -23,7 +24,11 @@ class ServerTestTransportTest {
         verifyLocalTransport(ServerTestMode.RealCall)
     }
 
-    private suspend fun verifyLocalTransport(mode: ServerTestMode) {
+    @Test fun mainAppConsentUsesTheSameLocalSessionAndRequestTransport() = runBlocking {
+        verifyLocalTransport(ServerTestMode.RealCall, throughMain = true)
+    }
+
+    private suspend fun verifyLocalTransport(mode: ServerTestMode, throughMain: Boolean = false) {
         val server = MockWebServer().apply { start() }
         val socket = AtomicReference<WebSocket>()
         val requests = CopyOnWriteArrayList<RecordedRequest>()
@@ -58,9 +63,16 @@ class ServerTestTransportTest {
             }
         }
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-        val c = ServerTestController(scope, { key -> HttpServerTestGateway(key, server.url("/v1").toString(), true) })
+        val factory = { key: String -> HttpServerTestGateway(key, server.url("/v1").toString(), true) }
+        val owner = if (throughMain) LiveCallOwner(scope, factory) else null
+        val c = owner?.server ?: ServerTestController(scope, factory)
         try {
-            c.start("test-development-key", "070-0000-0000", "잔액 조회", mode)
+            if (owner != null) {
+                owner.begin("070-0000-0000"); owner.editGoal("잔액 조회"); owner.prepare()
+                assertTrue(requests.isEmpty())
+                assertTrue(owner.confirm("test-development-key"))
+                assertFalse(owner.confirm("test-development-key"))
+            } else c.start("test-development-key", "070-0000-0000", "잔액 조회", mode)
             val live = withTimeout(5_000) { c.state.first {
                 it.snapshot.pendingRequest?.requestId == "real-r" && it.snapshot.captions.isNotEmpty() && it.snapshot.path.isNotEmpty()
             } }
@@ -87,7 +99,8 @@ class ServerTestTransportTest {
             assertEquals(apiJson.parseToJsonElement("""{"type":"select","request_id":"real-r","key":"3"}"""), apiJson.parseToJsonElement(action.body.readUtf8()))
             assertNull(requests.first().getHeader("X-App-Key"))
         } finally {
-            c.close(); scope.cancel(); server.shutdown()
+            if (owner != null) owner.close() else c.close()
+            scope.cancel(); server.shutdown()
         }
     }
 }
