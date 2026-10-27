@@ -14,6 +14,8 @@ import kr.ac.suwon.arsagent.data.api.*
 import kr.ac.suwon.arsagent.livecall.LiveCallOwner
 import kr.ac.suwon.arsagent.model.*
 import kr.ac.suwon.arsagent.servertest.*
+import kr.ac.suwon.arsagent.servertest.voice.ServerVoiceUi
+import kr.ac.suwon.arsagent.servertest.voice.VoiceStatus
 import kr.ac.suwon.arsagent.ui.live.MainPhoneApp
 import org.junit.After
 import org.junit.Assert.*
@@ -26,8 +28,8 @@ class MainLiveCallUiTest {
     private val gateway = MainUiGateway()
     private val owner = LiveCallOwner(scope, { gateway })
     private val phone = mutableStateOf(AppState(number = "07011112222"))
-    private fun content() {
-        compose.setContent { MainPhoneApp(phone.value, { phone.value = phone.value.reduce(it) }, owner) }
+    private fun content(voice: ServerVoiceUi? = null) {
+        compose.setContent { MainPhoneApp(phone.value, { phone.value = phone.value.reduce(it) }, owner, voice) }
     }
     @After fun close() { compose.runOnIdle { owner.close(); scope.cancel() } }
 
@@ -46,6 +48,35 @@ class MainLiveCallUiTest {
     }
     private fun request(value: UserRequest) = compose.runOnIdle {
         gateway.bus.tryEmit(SessionEvent.InputRequested("now", value))
+    }
+
+    @Test fun progressCardOmitsVoiceStatusAndToggleWithoutTurningVoiceOff() {
+        val status = mutableStateOf(VoiceStatus(enabled = true))
+        compose.setContent {
+            val voice = ServerVoiceUi(status.value, false, false, null,
+                { fail("Rendering must not toggle voice") }, {}, {}, {}, {})
+            MainPhoneApp(phone.value, { phone.value = phone.value.reduce(it) }, owner, voice)
+        }
+        start()
+        compose.onNodeWithText("서버에서 받은 실제 진행").assertIsDisplayed()
+        compose.onNodeWithText("Agent 음성 대화 켜짐").assertDoesNotExist()
+        compose.onNodeWithText("음성 대화 끄기").assertDoesNotExist()
+        compose.runOnIdle { assertTrue(status.value.enabled); status.value = VoiceStatus() }
+        compose.onNodeWithText("Agent 음성 대화 꺼짐").assertDoesNotExist()
+        compose.onNodeWithText("음성 대화 켜기").assertDoesNotExist()
+    }
+
+    @Test fun clarificationKeepsSpokenAnswerActionWithoutVoiceToggle() {
+        var replies = 0
+        val voice = ServerVoiceUi(VoiceStatus(enabled = true), false, false, null,
+            { fail("Voice must stay enabled") }, {}, { replies++ }, {}, {})
+        content(voice); start()
+        request(UserRequest("voice-ui", "clarification", "어느 업무인가요?", "2099-01-01T00:00:00Z",
+            options = listOf(MenuOption("3", "카드 발급"))))
+        compose.waitUntil(5_000) { owner.canRespond("voice-ui") }
+        compose.onNodeWithText("말로 답하기").performScrollTo().assertIsEnabled().performClick()
+        compose.runOnIdle { assertEquals(1, replies); assertTrue(gateway.actions.isEmpty()) }
+        compose.onNodeWithText("음성 대화 끄기").assertDoesNotExist()
     }
 
     @Test fun normalPhoneRemainsDemoAndMobileHasNoAgentButton() {

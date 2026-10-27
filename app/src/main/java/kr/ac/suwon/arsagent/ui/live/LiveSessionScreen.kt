@@ -90,13 +90,6 @@ private fun LiveSessionExtras(server: ServerTestState, voice: ServerVoiceUi?, au
         return
     }
     if (!compactInput && voice != null && server.active) {
-        Text(when {
-            voice.status.listening -> "듣고 있어요. Agent에게 말씀해 주세요."
-            voice.status.speaking -> "Agent가 안내하고 있어요."
-            voice.status.enabled -> "Agent 음성 대화 켜짐"
-            else -> "Agent 음성 대화 꺼짐"
-        }, color = ArsColors.Blue)
-        TextButton(voice.toggleVoice) { Text(if (voice.status.enabled) "음성 대화 끄기" else "음성 대화 켜기") }
         if (voice.status.listening || voice.status.speaking)
             TextButton(voice.cancelInput) { Text("음성 입력·안내 멈추기") }
         val request = server.snapshot.pendingRequest
