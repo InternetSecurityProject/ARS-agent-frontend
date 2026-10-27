@@ -36,12 +36,12 @@ fun FigmaIcon(name: String, size: Dp = 24.dp, tint: Color? = null) {
 fun RoundAction(
     label: String, icon: String, onClick: () -> Unit, modifier: Modifier = Modifier,
     size: Dp = 60.dp, color: Color = Color.White, labelColor: Color = ArsColors.Ink,
-    iconSize: Dp = 24.dp, enabled: Boolean = true, tint: Color? = null,
+    iconSize: Dp = 24.dp, enabled: Boolean = true, tint: Color? = null, shadowElevation: Dp = 8.dp,
 ) {
     Column(modifier.width(96.dp).alpha(if (enabled) 1f else .38f)
         .clip(RoundedCornerShape(12.dp)).clickable(enabled = enabled, role = Role.Button, onClick = onClick)
         .padding(vertical = 2.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(Modifier.size(size).shadow(if (color == Color.White) 8.dp else 0.dp, CircleShape)
+        Box(Modifier.size(size).shadow(if (color == Color.White) shadowElevation else 0.dp, CircleShape)
             .background(color, CircleShape), contentAlignment = Alignment.Center) {
             FigmaIcon(icon, iconSize, tint)
         }
@@ -85,7 +85,7 @@ fun PhoneKeypad(
 @Composable
 fun ProgressCard(modifier: Modifier = Modifier, scrollable: Boolean = true, content: @Composable ColumnScope.() -> Unit) {
     val scrollState = rememberScrollState()
-    Column(modifier.shadow(8.dp, RoundedCornerShape(20.dp)).background(Color.White, RoundedCornerShape(20.dp))
+    Column(modifier.shadow(2.dp, RoundedCornerShape(20.dp)).background(Color.White, RoundedCornerShape(20.dp))
         .padding(16.dp).then(if (scrollable) Modifier.verticalScroll(scrollState) else Modifier),
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
         // Scope the paragraph font to this card. Explicit title/label/action styles stay unchanged.

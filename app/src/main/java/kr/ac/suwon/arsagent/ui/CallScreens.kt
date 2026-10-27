@@ -228,11 +228,11 @@ private fun AgentControls(state: AppState, dispatch: (Action) -> Unit, interacti
     Row(Modifier.widthIn(max = 304.dp).fillMaxWidth().heightIn(min = 88.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)) {
         RoundAction(if (state.audioOn) "ARS 소리 끄기" else "ARS 소리 켜기", "agent_blue",
-            { dispatch(Action.ToggleAudio) }, modifier = Modifier.weight(1f), enabled = enabled &&
+            { dispatch(Action.ToggleAudio) }, modifier = Modifier.weight(1f), shadowElevation = 2.dp, enabled = enabled &&
                 (liveControls?.arsAvailable ?: (state.phase != Phase.Dialing)))
-        RoundAction("키패드", "keypad", { dispatch(Action.OpenKeypad) }, modifier = Modifier.weight(1f), enabled = enabled &&
+        RoundAction("키패드", "keypad", { dispatch(Action.OpenKeypad) }, modifier = Modifier.weight(1f), shadowElevation = 2.dp, enabled = enabled &&
             (liveControls?.keypadAvailable ?: (state.phase != Phase.Dialing)))
-        RoundAction("오디오", "speaker", { dispatch(Action.ToggleAudioMenu) }, modifier = Modifier.weight(1f),
+        RoundAction("오디오", "speaker", { dispatch(Action.ToggleAudioMenu) }, modifier = Modifier.weight(1f), shadowElevation = 2.dp,
             enabled = enabled && (liveControls?.availableRoutes?.isNotEmpty() ?: true))
     }
 }
