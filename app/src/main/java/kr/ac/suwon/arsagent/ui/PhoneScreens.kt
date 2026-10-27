@@ -16,10 +16,10 @@ import androidx.compose.ui.unit.*
 import kr.ac.suwon.arsagent.model.*
 
 @Composable
-fun PhoneHome(state: AppState, dispatch: (Action) -> Unit, openScenarios: () -> Unit) {
+fun PhoneHome(state: AppState, dispatch: (Action) -> Unit, openScenarios: () -> Unit, modeLabel: String? = null) {
     Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
         TextButton(openScenarios, modifier = Modifier.heightIn(min = 32.dp)) {
-            Text("UI 데모 · ${state.scenario.title}", style = MaterialTheme.typography.labelMedium)
+            Text(modeLabel ?: "UI 데모 · ${state.scenario.title}", style = MaterialTheme.typography.labelMedium)
         }
         when {
             state.screen == Screen.Detail -> ContactDetail(state, dispatch, Modifier.weight(1f))

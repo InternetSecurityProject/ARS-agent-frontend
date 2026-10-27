@@ -11,7 +11,10 @@ import androidx.compose.ui.graphics.Color
 import kr.ac.suwon.arsagent.model.*
 
 @Composable
-fun ArsApp(state: AppState, onAction: (Action) -> Unit) {
+fun ArsApp(state: AppState, onAction: (Action) -> Unit) = ArsApp(state, onAction, null, null)
+
+@Composable
+fun ArsApp(state: AppState, onAction: (Action) -> Unit, modeLabel: String?, onModeMenu: (() -> Unit)?) {
     var showScenarios by remember { mutableStateOf(false) }
     BackHandler(enabled = state.screen != Screen.Home) { onAction(Action.Back) }
     ArsTheme {
@@ -20,7 +23,7 @@ fun ArsApp(state: AppState, onAction: (Action) -> Unit) {
             Brush.verticalGradient(0f to ArsColors.CallGradient[0], .32f to ArsColors.CallGradient[1],
                 .62f to ArsColors.CallGradient[2], 1f to ArsColors.CallGradient[3]))
         Box(Modifier.fillMaxSize().then(background).safeDrawingPadding().imePadding()) {
-            if (home) PhoneHome(state, onAction) { showScenarios = true }
+            if (home) PhoneHome(state, onAction, onModeMenu ?: { showScenarios = true }, modeLabel)
             else CallScreen(state, onAction)
         }
         if (showScenarios) {

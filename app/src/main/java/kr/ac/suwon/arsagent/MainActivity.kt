@@ -1,10 +1,14 @@
 package kr.ac.suwon.arsagent
 
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import kr.ac.suwon.arsagent.ui.ArsApp
+import androidx.compose.runtime.DisposableEffect
+import kr.ac.suwon.arsagent.livecall.MainCallViewModel
+import kr.ac.suwon.arsagent.servertest.voice.ServerVoiceBinding
+import kr.ac.suwon.arsagent.ui.live.MainPhoneApp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
@@ -16,7 +20,20 @@ class MainActivity : ComponentActivity() {
         setContent {
             val model: AppViewModel = viewModel()
             val state by model.state.collectAsStateWithLifecycle()
-            ArsApp(state, model::dispatch)
+            val calls: MainCallViewModel = viewModel()
+            val entry by calls.owner.entry.collectAsStateWithLifecycle()
+            val server by calls.owner.server.state.collectAsStateWithLifecycle()
+            DisposableEffect(entry != null) {
+                val wasSecure = window.attributes.flags and WindowManager.LayoutParams.FLAG_SECURE != 0
+                if (entry != null) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                onDispose { if (!wasSecure) window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE) }
+            }
+            if (entry != null) {
+                ServerVoiceBinding(server, calls.owner::dispatch, calls.sessions,
+                    latestState = { calls.owner.server.state.value }) { voice ->
+                    MainPhoneApp(state, model::dispatch, calls.owner, voice)
+                }
+            } else MainPhoneApp(state, model::dispatch, calls.owner)
         }
     }
 }

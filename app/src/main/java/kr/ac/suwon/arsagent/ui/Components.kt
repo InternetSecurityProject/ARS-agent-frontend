@@ -91,17 +91,19 @@ fun ProgressCard(modifier: Modifier = Modifier, scrollable: Boolean = true, cont
 }
 
 @Composable
-fun VoiceInput(value: String, placeholder: String, onValue: (String) -> Unit, onExample: () -> Unit) {
+fun VoiceInput(value: String, placeholder: String, onValue: (String) -> Unit, onExample: () -> Unit,
+    microphoneDescription: String = "예시 음성 문장 입력, 녹음하지 않음", microphoneEnabled: Boolean = true,
+    inputEnabled: Boolean = true) {
     Row(Modifier.fillMaxWidth().heightIn(min = 64.dp).background(ArsColors.Neutral, RoundedCornerShape(16.dp))
         .border(1.dp, ArsColors.Border, RoundedCornerShape(16.dp)).padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically) {
-        BasicTextField(value, onValue, textStyle = MaterialTheme.typography.bodyLarge.copy(color = ArsColors.Ink),
+        BasicTextField(value, onValue, enabled = inputEnabled, textStyle = MaterialTheme.typography.bodyLarge.copy(color = ArsColors.Ink),
             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = ImeAction.Done),
             modifier = Modifier.weight(1f).semantics { contentDescription = "음성 대신 텍스트 입력" },
             decorationBox = { inner -> Box { if (value.isEmpty()) Text(placeholder, color = ArsColors.Secondary); inner() } })
         Spacer(Modifier.width(8.dp))
         Box(Modifier.size(48.dp).background(ArsColors.Blue, CircleShape).clip(CircleShape)
-            .clickable(role = Role.Button, onClick = onExample).semantics { contentDescription = "예시 음성 문장 입력, 녹음하지 않음" },
+            .clickable(enabled = microphoneEnabled, role = Role.Button, onClick = onExample).semantics { contentDescription = microphoneDescription },
             contentAlignment = Alignment.Center) { FigmaIcon("mic") }
     }
 }

@@ -20,12 +20,22 @@ fun BServerCallScreen(
     onBack: () -> Unit,
     choiceInput: CandidateChoiceInput? = null,
     secureInput: SecureInputInput? = null,
+    controls: ServerCallControls? = null,
+    answerInput: ServerAnswerInput? = null,
 ) {
     val data = BCallData.from(snapshot, result)
     // Reuse AppState solely for existing call-frame geometry, never its demo reducer/ViewModel.
     val frame = AppState(screen = Screen.Call, number = number, agent = true,
-        phase = if (data.status == "dialing") Phase.Dialing else Phase.Listening)
-    BackHandler { if (data.isEnded) onBack() }
+        phase = if (data.status == "dialing") Phase.Dialing else Phase.Listening,
+        keypadOpen = controls?.keypadOpen == true, audioOn = controls?.arsEnabled == true,
+        audioMenu = controls?.audioMenu == true, audioRoute = controls?.audioRoute ?: AudioRoute.Phone)
+    BackHandler {
+        when {
+            controls?.audioMenu == true -> controls.onAudioMenu()
+            controls?.keypadOpen == true -> controls.onKeypad()
+            data.isEnded || controls != null -> onBack()
+        }
+    }
     ArsTheme {
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(
             0f to ArsColors.CallGradient[0], .32f to ArsColors.CallGradient[1],
@@ -35,9 +45,15 @@ fun BServerCallScreen(
                 when (action) {
                     Action.End -> onEnd()
                     Action.Back -> if (data.isEnded) onBack()
-                    else -> Unit // Secondary controls await separate C/audio integration.
+                    Action.ToggleAudio -> controls?.onToggleArs?.invoke()
+                    Action.OpenKeypad -> controls?.onKeypad?.invoke()
+                    Action.ToggleAudioMenu -> controls?.onAudioMenu?.invoke()
+                    is Action.Route -> controls?.onRoute?.invoke(action.route)
+                    is Action.Key -> controls?.onKey?.invoke(action.digit)
+                    else -> Unit
                 }
-            }, serverData = data, choiceInput = choiceInput, secureInput = secureInput)
+            }, serverData = data, choiceInput = choiceInput, secureInput = secureInput,
+                liveControls = controls, answerInput = answerInput)
         }
     }
 }

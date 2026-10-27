@@ -92,13 +92,19 @@ class LiveCallOwner(scope: CoroutineScope,
     }
 
     /** All response sources (speech, candidate and text/keypad) share one request receipt. */
+    fun canRespond(requestId: String): Boolean {
+        val state = server.state.value
+        val request = state.snapshot.pendingRequest ?: return false
+        return !closed && requestId.isNotBlank() && state.canSend && state.snapshot.status == "awaiting_user" &&
+            request.requestId == requestId && requestId !in replies && server.requestCurrent(request)
+    }
+
     fun dispatch(command: ServerTestCommand) {
         if (closed || entry.value == null) return
         if (command is ServerTestCommand.Respond) {
             val state = server.state.value
             val request = state.snapshot.pendingRequest ?: return
-            if (!state.canSend || state.snapshot.status != "awaiting_user" ||
-                request.requestId != command.requestId || !server.requestCurrent(request) || request.requestId in replies) return
+            if (!canRespond(command.requestId)) return
             val valid = when (request.kind) {
                 "clarification" -> if (command.selection)
                     request.options.count { it.key == command.value } == 1

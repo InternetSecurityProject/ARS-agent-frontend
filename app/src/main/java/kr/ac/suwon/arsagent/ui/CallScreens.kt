@@ -17,7 +17,8 @@ import androidx.compose.ui.unit.*
 import kr.ac.suwon.arsagent.model.*
 
 @Composable
-fun CallScreen(state: AppState, dispatch: (Action) -> Unit, serverData: BCallData? = null, choiceInput: CandidateChoiceInput? = null, secureInput: SecureInputInput? = null) {
+fun CallScreen(state: AppState, dispatch: (Action) -> Unit, serverData: BCallData? = null, choiceInput: CandidateChoiceInput? = null, secureInput: SecureInputInput? = null,
+    liveControls: ServerCallControls? = null, answerInput: ServerAnswerInput? = null, purposeContent: (@Composable () -> Unit)? = null) {
     // Keep receipts above responsive/content branches: resizing or a temporary missing request
     // must not make an already dispatched action eligible again. The host keys this screen per session.
     var choiceReceipts by rememberSaveable { mutableStateOf(emptyList<String>()) }
@@ -47,14 +48,14 @@ fun CallScreen(state: AppState, dispatch: (Action) -> Unit, serverData: BCallDat
         val compact = maxHeight < 600.dp
         Column(Modifier.fillMaxSize().padding(horizontal = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             if (compact) {
-                CompactCallBody(state, dispatch, keypad, Modifier.weight(1f), serverData, guardedChoiceInput, choiceSubmitted, secureContent)
+                CompactCallBody(state, dispatch, keypad, Modifier.weight(1f), serverData, guardedChoiceInput, choiceSubmitted, secureContent, liveControls, answerInput, purposeContent)
             } else {
                 Spacer(Modifier.height(topSpace))
-                CallHeader(state, serverData)
+                CallHeader(state, serverData, liveControls?.elapsedSeconds)
                 Spacer(Modifier.height(24.dp))
                 when {
-                secureContent != null -> ServerSecureKeypad(secureContent, Modifier.weight(1f))
-                keypad -> CardFreeKeypad(state, dispatch, Modifier.weight(1f))
+                secureContent != null -> ServerSecureKeypad(secureContent, Modifier.weight(1f), extraContent = { liveControls?.extras?.invoke() })
+                keypad -> CardFreeKeypad(state, dispatch, Modifier.weight(1f), liveControls = liveControls)
                 !state.agent && state.screen == Screen.Call -> {
                     Spacer(Modifier.weight(1f))
                     NormalControls(state, dispatch)
@@ -62,10 +63,10 @@ fun CallScreen(state: AppState, dispatch: (Action) -> Unit, serverData: BCallDat
                 }
                 state.screen == Screen.Ended -> Spacer(Modifier.weight(1f))
                 else -> {
-                    ProgressCard(Modifier.fillMaxWidth().weight(1f)) { AgentContent(state, dispatch, serverData, guardedChoiceInput, choiceSubmitted) }
+                    ProgressCard(Modifier.fillMaxWidth().weight(1f)) { AgentContent(state, dispatch, serverData, guardedChoiceInput, choiceSubmitted, liveControls, answerInput, purposeContent) }
                     Spacer(Modifier.height(20.dp))
                     if (state.screen == Screen.Purpose) Spacer(Modifier.height(88.dp))
-                    else if (serverData?.isEnded != true) AgentControls(state, dispatch, interactive = serverData == null)
+                    else if (serverData?.isEnded != true) AgentControls(state, dispatch, interactive = serverData == null || liveControls != null, liveControls = liveControls)
                     Spacer(Modifier.height(16.dp))
                 }
                 }
@@ -93,37 +94,40 @@ fun CallScreen(state: AppState, dispatch: (Action) -> Unit, serverData: BCallDat
             } else {
                 Box(Modifier.heightIn(min = 104.dp), contentAlignment = Alignment.TopCenter) {
                     if (state.screen == Screen.Purpose) RoundAction("취소", "close", { dispatch(Action.Back) }, size = 72.dp)
-                    else RoundAction("종료", "end_call", { secureForm?.stop(); dispatch(Action.End) }, size = 72.dp, iconSize = 42.dp, color = ArsColors.Red)
+                    else RoundAction("종료", "end_call", { secureForm?.stop(); dispatch(Action.End) }, size = 72.dp, iconSize = 42.dp, color = ArsColors.Red,
+                        enabled = liveControls?.endEnabled ?: true)
                 }
             }
             Spacer(Modifier.height(22.dp))
         }
-        Text(if (serverData != null) "서버 데이터 · 오디오 미연결"
+        Text(if (liveControls != null) "실제 ARS" else if (serverData != null) "서버 데이터 · 오디오 미연결"
             else if (compact) "${formatPhone(state.number)} · UI 데모" else "UI 데모 · 실제 통화 아님", color = ArsColors.Secondary, style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp))
-        if (serverData == null && state.audioMenu && state.screen == Screen.Call) AudioPopover(state, dispatch)
+        if ((serverData == null || liveControls != null) && state.audioMenu && state.screen == Screen.Call)
+            AudioPopover(state, dispatch, liveControls?.availableRoutes)
     }
 }
 
 /** Keyboard/short-window layout: scroll the body, never the terminal action. */
 @Composable
-private fun CompactCallBody(state: AppState, dispatch: (Action) -> Unit, keypad: Boolean, modifier: Modifier, serverData: BCallData? = null, choiceInput: CandidateChoiceInput? = null, choiceSubmitted: Boolean = false, secureContent: ServerSecureContent? = null) {
+private fun CompactCallBody(state: AppState, dispatch: (Action) -> Unit, keypad: Boolean, modifier: Modifier, serverData: BCallData? = null, choiceInput: CandidateChoiceInput? = null, choiceSubmitted: Boolean = false, secureContent: ServerSecureContent? = null,
+    liveControls: ServerCallControls? = null, answerInput: ServerAnswerInput? = null, purposeContent: (@Composable () -> Unit)? = null) {
     Column(modifier.fillMaxWidth().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
         Spacer(Modifier.height(32.dp))
         if (serverData != null) {
-            CallHeader(state, serverData)
+            CallHeader(state, serverData, liveControls?.elapsedSeconds)
             Spacer(Modifier.height(16.dp))
         }
         when {
-            secureContent != null -> ServerSecureKeypad(secureContent, Modifier, scrollable = false)
-            keypad -> CardFreeKeypad(state, dispatch, Modifier, scrollable = false)
+            secureContent != null -> ServerSecureKeypad(secureContent, Modifier, scrollable = false, extraContent = { liveControls?.extras?.invoke() })
+            keypad -> CardFreeKeypad(state, dispatch, Modifier, scrollable = false, liveControls = liveControls)
             state.screen == Screen.Ended -> CallHeader(state)
             !state.agent -> NormalControls(state, dispatch)
             else -> {
-                ProgressCard(Modifier.fillMaxWidth(), scrollable = false) { AgentContent(state, dispatch, serverData, choiceInput, choiceSubmitted) }
+                ProgressCard(Modifier.fillMaxWidth(), scrollable = false) { AgentContent(state, dispatch, serverData, choiceInput, choiceSubmitted, liveControls, answerInput, purposeContent) }
                 if (state.screen == Screen.Call && serverData?.isEnded != true) {
                     Spacer(Modifier.height(16.dp))
-                    AgentControls(state, dispatch, interactive = serverData == null)
+                    AgentControls(state, dispatch, interactive = serverData == null || liveControls != null, liveControls = liveControls)
                 }
             }
         }
@@ -132,13 +136,14 @@ private fun CompactCallBody(state: AppState, dispatch: (Action) -> Unit, keypad:
 }
 
 @Composable
-private fun CallHeader(state: AppState, serverData: BCallData? = null) {
+private fun CallHeader(state: AppState, serverData: BCallData? = null, liveSeconds: Int? = null) {
     Column(Modifier.fillMaxWidth().heightIn(min = 76.dp), horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(formatPhone(state.number).ifEmpty { if (serverData == null) "131" else "번호 확인 전" }, style = MaterialTheme.typography.headlineLarge, textAlign = TextAlign.Center)
         val subtitle = when {
             serverData?.isEnded == true -> serverData.durationSeconds?.let { "통화 종료 · ${formatDuration(it)}" } ?: "통화 종료"
-            serverData != null -> if (serverData.status == "dialing") "${contactName(state.number)} · 연결 중" else contactName(state.number)
+            serverData != null -> if (serverData.status == "dialing") "${contactName(state.number)} · 연결 중"
+                else contactName(state.number) + (liveSeconds?.let { " · ${formatDuration(it)}" } ?: "")
             state.screen == Screen.Purpose -> contactName(state.number)
             state.screen == Screen.Ended -> "통화 종료 · ${formatDuration(state.elapsedSeconds)}"
             state.phase == Phase.Dialing -> "${contactName(state.number)} · 연결 중"
@@ -150,12 +155,15 @@ private fun CallHeader(state: AppState, serverData: BCallData? = null) {
 }
 
 @Composable
-private fun AgentContent(state: AppState, dispatch: (Action) -> Unit, serverData: BCallData? = null, choiceInput: CandidateChoiceInput? = null, choiceSubmitted: Boolean = false) {
+private fun AgentContent(state: AppState, dispatch: (Action) -> Unit, serverData: BCallData? = null, choiceInput: CandidateChoiceInput? = null, choiceSubmitted: Boolean = false,
+    liveControls: ServerCallControls? = null, answerInput: ServerAnswerInput? = null, purposeContent: (@Composable () -> Unit)? = null) {
     if (serverData != null) {
-        BServerContent(serverData, choiceInput, choiceSubmitted)
+        BServerContent(serverData, choiceInput, choiceSubmitted, answerInput)
+        liveControls?.extras?.invoke()
         return
     }
     if (state.screen == Screen.Purpose) {
+        if (purposeContent != null) { purposeContent(); return }
         Text("어떤 일을 도와드릴까요?", style = MaterialTheme.typography.titleLarge)
         Spacer(Modifier.height(4.dp))
         VoiceInput(state.goalDraft, "원하는 일을 말하거나 입력해 주세요", { dispatch(Action.GoalChanged(it)) },
@@ -215,13 +223,16 @@ private fun AgentContent(state: AppState, dispatch: (Action) -> Unit, serverData
 private fun CardEyebrow(text: String) { Text(text, style = MaterialTheme.typography.labelMedium, color = ArsColors.Blue) }
 
 @Composable
-private fun AgentControls(state: AppState, dispatch: (Action) -> Unit, interactive: Boolean = true) {
+private fun AgentControls(state: AppState, dispatch: (Action) -> Unit, interactive: Boolean = true, liveControls: ServerCallControls? = null) {
     Row(Modifier.widthIn(max = 304.dp).fillMaxWidth().heightIn(min = 88.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)) {
         RoundAction(if (state.audioOn) "ARS 소리 끄기" else "ARS 소리 켜기", "agent_blue",
-            { dispatch(Action.ToggleAudio) }, modifier = Modifier.weight(1f), enabled = interactive && state.phase != Phase.Dialing)
-        RoundAction("키패드", "keypad", { dispatch(Action.OpenKeypad) }, modifier = Modifier.weight(1f), enabled = interactive && state.phase != Phase.Dialing)
-        RoundAction("오디오", "speaker", { dispatch(Action.ToggleAudioMenu) }, modifier = Modifier.weight(1f), enabled = interactive)
+            { dispatch(Action.ToggleAudio) }, modifier = Modifier.weight(1f), enabled = interactive &&
+                (liveControls?.arsAvailable ?: (state.phase != Phase.Dialing)))
+        RoundAction("키패드", "keypad", { dispatch(Action.OpenKeypad) }, modifier = Modifier.weight(1f), enabled = interactive &&
+            (liveControls?.keypadAvailable ?: (state.phase != Phase.Dialing)))
+        RoundAction("오디오", "speaker", { dispatch(Action.ToggleAudioMenu) }, modifier = Modifier.weight(1f),
+            enabled = interactive && (liveControls?.availableRoutes?.isNotEmpty() ?: true))
     }
 }
 
@@ -241,35 +252,41 @@ private fun NormalControls(state: AppState, dispatch: (Action) -> Unit) {
 }
 
 @Composable
-private fun CardFreeKeypad(state: AppState, dispatch: (Action) -> Unit, modifier: Modifier, scrollable: Boolean = true) {
+private fun CardFreeKeypad(state: AppState, dispatch: (Action) -> Unit, modifier: Modifier, scrollable: Boolean = true, liveControls: ServerCallControls? = null) {
     val secure = state.phase == Phase.Secure || state.phase == Phase.Sending
     val scrollState = rememberScrollState()
     Column(modifier.fillMaxWidth().then(if (scrollable) Modifier.verticalScroll(scrollState) else Modifier), horizontalAlignment = Alignment.CenterHorizontally) {
         Text(if (secure) "생년월일 6자리 입력" else "번호를 직접 눌러 주세요", style = MaterialTheme.typography.titleLarge,
             textAlign = TextAlign.Center)
         Spacer(Modifier.height(8.dp))
-        Text(if (secure) "6자리 입력 후 ‘입력 완료’를 눌러 주세요." else "누른 번호가 바로 전송돼요. AI는 입력 후 10초간 기다려요.",
+        Text(if (secure) "6자리 입력 후 ‘입력 완료’를 눌러 주세요." else if (liveControls != null) "누른 번호가 바로 전송돼요."
+            else "누른 번호가 바로 전송돼요. AI는 입력 후 10초간 기다려요.",
             style = MaterialTheme.typography.bodyMedium, color = ArsColors.Secondary, textAlign = TextAlign.Center)
         Spacer(Modifier.height(8.dp))
         Box(Modifier.fillMaxWidth().heightIn(min = 44.dp), contentAlignment = Alignment.Center) {
-            Text(if (secure) "●".repeat(state.secureEntry.count) + "○".repeat(6 - state.secureEntry.count) else state.manualDigits,
+            Text(if (secure) "●".repeat(state.secureEntry.count) + "○".repeat(6 - state.secureEntry.count) else liveControls?.manualKeys ?: state.manualDigits,
                 fontSize = 24.sp, textAlign = TextAlign.Center, maxLines = 1)
             if (secure) TextButton({ dispatch(Action.DeleteSecure) }, Modifier.align(Alignment.CenterEnd), enabled = state.phase == Phase.Secure) { Text("⌫") }
         }
+        if (liveControls != null) {
+            TextButton({ dispatch(Action.OpenKeypad) }) { Text("키패드 가리기") }
+            liveControls.extras()
+        }
         Spacer(Modifier.height(16.dp))
-        PhoneKeypad({ dispatch(Action.Key(it)) }, Modifier.testTag("call-keypad"), compact = true, enabled = state.phase != Phase.Sending,
+        PhoneKeypad({ dispatch(Action.Key(it)) }, Modifier.testTag("call-keypad"), compact = true,
+            enabled = liveControls?.keypadAvailable ?: (state.phase != Phase.Sending),
             rowSpacing = if (secure) 12.dp else 24.dp)
     }
 }
 
 @Composable
-private fun BoxScope.AudioPopover(state: AppState, dispatch: (Action) -> Unit) {
+private fun BoxScope.AudioPopover(state: AppState, dispatch: (Action) -> Unit, availableRoutes: Set<AudioRoute>? = null) {
     Box(Modifier.fillMaxSize().background(ArsColors.Ink.copy(alpha = .12f)).clickable { dispatch(Action.ToggleAudioMenu) })
     Column(Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 240.dp).width(224.dp)
         .shadow(12.dp, RoundedCornerShape(18.dp)).background(Color.White, RoundedCornerShape(18.dp))
         .border(1.dp, ArsColors.Border.copy(alpha = .5f), RoundedCornerShape(18.dp)).padding(8.dp)) {
         listOf(Triple(AudioRoute.Phone, "휴대전화", "call_dark"), Triple(AudioRoute.Speaker, "스피커", "speaker")).forEach { (route, name, icon) ->
-            Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable { dispatch(Action.Route(route)) }.padding(horizontal = 8.dp),
+            Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(enabled = availableRoutes == null || route in availableRoutes) { dispatch(Action.Route(route)) }.padding(horizontal = 8.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(if (state.audioRoute == route) "✓" else "", modifier = Modifier.width(20.dp), color = ArsColors.Blue)
                 FigmaIcon(icon, tint = ArsColors.Ink)

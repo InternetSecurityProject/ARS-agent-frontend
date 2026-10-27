@@ -96,7 +96,8 @@ internal data class ServerSecureContent(
 )
 
 @Composable
-internal fun ServerSecureKeypad(content: ServerSecureContent, modifier: Modifier, scrollable: Boolean = true) {
+internal fun ServerSecureKeypad(content: ServerSecureContent, modifier: Modifier, scrollable: Boolean = true,
+    extraContent: @Composable () -> Unit = {}) {
     val (request, form, ready, submitted) = content
     val scroll = rememberScrollState()
     Column(modifier.fillMaxWidth().then(if (scrollable) Modifier.verticalScroll(scroll) else Modifier),
@@ -112,6 +113,7 @@ internal fun ServerSecureKeypad(content: ServerSecureContent, modifier: Modifier
             else -> null // The fixed completion button already explains the next action.
         }
         if (note != null) Text(note, color = ArsColors.Secondary, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
+        extraContent()
         Row(Modifier.fillMaxWidth().heightIn(min = 44.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("${form.count}/20", color = ArsColors.Secondary, style = MaterialTheme.typography.bodyMedium)
             Text("●".repeat(form.count), fontSize = 24.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,

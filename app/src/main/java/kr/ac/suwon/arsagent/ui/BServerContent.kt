@@ -8,7 +8,8 @@ import kr.ac.suwon.arsagent.model.BCallData
 
 /** Reuses the existing progress card; content comes only from the supplied server presentation. */
 @Composable
-internal fun BServerContent(data: BCallData, choiceInput: CandidateChoiceInput? = null, choiceSubmitted: Boolean = false) {
+internal fun BServerContent(data: BCallData, choiceInput: CandidateChoiceInput? = null, choiceSubmitted: Boolean = false,
+    answerInput: ServerAnswerInput? = null) {
     val pending = data.pendingRequest
     if (!data.isEnded) Text(data.title, style = MaterialTheme.typography.titleLarge)
     if (data.title == "진행 상태 확인 중") {
@@ -16,7 +17,10 @@ internal fun BServerContent(data: BCallData, choiceInput: CandidateChoiceInput? 
     }
     if (pending != null) {
         if (pending.kind == "clarification") {
-            ServerChoiceContent(pending, choiceInput?.copy(canSend = choiceInput.canSend && data.status == "awaiting_user"), choiceSubmitted)
+            if (pending.options.isNotEmpty() || answerInput == null || pending.reason == "critical_action")
+                ServerChoiceContent(pending, choiceInput?.copy(canSend = choiceInput.canSend && data.status == "awaiting_user"), choiceSubmitted)
+            else Text(pending.message)
+            if (answerInput != null) ServerAnswerContent(pending, answerInput)
             return
         }
         Text(pending.message)
