@@ -104,7 +104,8 @@ fun CallScreen(state: AppState, dispatch: (Action) -> Unit, serverData: BCallDat
             else if (compact) "${formatPhone(state.number)} · UI 데모" else "UI 데모 · 실제 통화 아님", color = ArsColors.Secondary, style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp))
         if ((serverData == null || liveControls != null) && state.audioMenu && state.screen == Screen.Call)
-            AudioPopover(state, dispatch, liveControls?.availableRoutes)
+            AudioPopover(state, dispatch, liveControls?.availableRoutes,
+                selectedRoute = if (liveControls == null) state.audioRoute else liveControls.audioRoute)
     }
 }
 
@@ -280,7 +281,8 @@ private fun CardFreeKeypad(state: AppState, dispatch: (Action) -> Unit, modifier
 }
 
 @Composable
-private fun BoxScope.AudioPopover(state: AppState, dispatch: (Action) -> Unit, availableRoutes: Set<AudioRoute>? = null) {
+private fun BoxScope.AudioPopover(state: AppState, dispatch: (Action) -> Unit, availableRoutes: Set<AudioRoute>? = null,
+    selectedRoute: AudioRoute? = state.audioRoute) {
     Box(Modifier.fillMaxSize().background(ArsColors.Ink.copy(alpha = .12f)).clickable { dispatch(Action.ToggleAudioMenu) })
     Column(Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 240.dp).width(224.dp)
         .shadow(12.dp, RoundedCornerShape(18.dp)).background(Color.White, RoundedCornerShape(18.dp))
@@ -288,7 +290,7 @@ private fun BoxScope.AudioPopover(state: AppState, dispatch: (Action) -> Unit, a
         listOf(Triple(AudioRoute.Phone, "휴대전화", "call_dark"), Triple(AudioRoute.Speaker, "스피커", "speaker")).forEach { (route, name, icon) ->
             Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(enabled = availableRoutes == null || route in availableRoutes) { dispatch(Action.Route(route)) }.padding(horizontal = 8.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(if (state.audioRoute == route) "✓" else "", modifier = Modifier.width(20.dp), color = ArsColors.Blue)
+                Text(if (selectedRoute == route) "✓" else "", modifier = Modifier.width(20.dp), color = ArsColors.Blue)
                 FigmaIcon(icon, tint = ArsColors.Ink)
                 Text(name, fontWeight = FontWeight.Medium)
             }

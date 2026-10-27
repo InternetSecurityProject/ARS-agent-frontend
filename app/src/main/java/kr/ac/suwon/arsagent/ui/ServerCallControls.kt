@@ -13,7 +13,7 @@ data class ServerCallControls(
     val keypadOpen: Boolean = false,
     val manualKeys: String = "",
     val audioMenu: Boolean = false,
-    val audioRoute: AudioRoute = AudioRoute.Phone,
+    val audioRoute: AudioRoute? = null,
     val availableRoutes: Set<AudioRoute> = emptySet(),
     val onToggleArs: () -> Unit = {},
     val onKeypad: () -> Unit = {},
@@ -23,5 +23,5 @@ data class ServerCallControls(
     val extras: @Composable () -> Unit = {},
 )
 
-data class LiveAudioUi(val route: AudioRoute, val available: Set<AudioRoute>, val error: String? = null,
+data class LiveAudioUi(val route: AudioRoute?, val available: Set<AudioRoute>, val error: String? = null,
     val select: (AudioRoute) -> Unit)

@@ -9,7 +9,7 @@ import kr.ac.suwon.arsagent.data.api.CreatedSession
 
 data class ArsPlaybackStatus(val enabled: Boolean = false, val playing: Boolean = false, val error: String? = null)
 
-class AndroidArsPlayer(private val scope: CoroutineScope) : Closeable {
+class AndroidArsPlayer(private val scope: CoroutineScope, private val communicationAudio: Boolean = false) : Closeable {
     private val mutable = MutableStateFlow(ArsPlaybackStatus())
     val state = mutable.asStateFlow()
     @Volatile private var job: Job? = null
@@ -21,7 +21,7 @@ class AndroidArsPlayer(private val scope: CoroutineScope) : Closeable {
         val next = scope.launch(Dispatchers.IO, start = CoroutineStart.LAZY) {
             val source = ArsAudio()
             try {
-                if (!gate.attach(token, AndroidPcmSink())) return@launch
+                if (!gate.attach(token, AndroidPcmSink(communicationAudio))) return@launch
                 source.listen(session).collect { samples ->
                     ensureActive()
                     gate.publish(token) {
@@ -53,13 +53,14 @@ class AndroidArsPlayer(private val scope: CoroutineScope) : Closeable {
     override fun close() = stop()
 }
 
-private class AndroidPcmSink : PcmSink {
+private class AndroidPcmSink(communicationAudio: Boolean) : PcmSink {
     private val track: AudioTrack
     init {
         val size = AudioTrack.getMinBufferSize(8000, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT)
         check(size > 0)
         val created = AudioTrack.Builder().setAudioAttributes(AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
+            .setUsage(if (communicationAudio) AudioAttributes.USAGE_VOICE_COMMUNICATION else AudioAttributes.USAGE_MEDIA)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
             .setAudioFormat(AudioFormat.Builder().setSampleRate(8000).setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
                 .setEncoding(AudioFormat.ENCODING_PCM_16BIT).build())
             .setBufferSizeInBytes(maxOf(size, 1600)).setTransferMode(AudioTrack.MODE_STREAM).build()

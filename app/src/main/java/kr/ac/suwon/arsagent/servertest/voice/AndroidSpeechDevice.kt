@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.AudioAttributes
 import android.os.Bundle
 import android.os.Build
 import android.os.Handler
@@ -15,7 +16,8 @@ import androidx.core.content.ContextCompat
 import java.util.Locale
 
 /** One foreground utterance at a time. Raw speech is never written, saved, or sent to the institution. */
-class AndroidSpeechDevice(context: Context, private val report: (String) -> Unit) : SpeechDevice {
+class AndroidSpeechDevice(context: Context, private val communicationAudio: Boolean = false,
+    private val report: (String) -> Unit) : SpeechDevice {
     private val app = context.applicationContext
     private val main = Handler(Looper.getMainLooper())
     private var tts: TextToSpeech? = null
@@ -35,6 +37,9 @@ class AndroidSpeechDevice(context: Context, private val report: (String) -> Unit
                 val engine = tts
                 if (engine == null || !ready || failed) report("한국어 음성 안내를 사용할 수 없어요. 화면으로 확인해 주세요.")
                 else {
+                    if (communicationAudio) engine.setAudioAttributes(AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
                     engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                         override fun onStart(utteranceId: String?) {}
                         override fun onDone(utteranceId: String?) {

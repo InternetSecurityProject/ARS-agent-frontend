@@ -7,7 +7,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.DisposableEffect
 import kr.ac.suwon.arsagent.livecall.MainCallViewModel
-import kr.ac.suwon.arsagent.servertest.voice.ServerVoiceBinding
+import kr.ac.suwon.arsagent.ui.live.MainLiveBindings
 import kr.ac.suwon.arsagent.ui.live.MainPhoneApp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -28,12 +28,9 @@ class MainActivity : ComponentActivity() {
                 if (entry != null) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
                 onDispose { if (!wasSecure) window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE) }
             }
-            if (entry != null) {
-                ServerVoiceBinding(server, calls.owner::dispatch, calls.sessions,
-                    latestState = { calls.owner.server.state.value }) { voice ->
-                    MainPhoneApp(state, model::dispatch, calls.owner, voice)
-                }
-            } else MainPhoneApp(state, model::dispatch, calls.owner)
+            MainLiveBindings(entry, server, calls.owner, calls.sessions) { voice, audio ->
+                MainPhoneApp(state, model::dispatch, calls.owner, voice, audio)
+            }
         }
     }
 }

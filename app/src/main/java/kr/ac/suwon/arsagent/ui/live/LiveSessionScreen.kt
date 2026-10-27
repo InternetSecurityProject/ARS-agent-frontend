@@ -29,7 +29,7 @@ internal fun LiveSessionScreen(entry: LiveEntry, server: ServerTestState, owner:
         arsEnabled = voice?.arsEnabled == true,
         arsAvailable = voice != null && server.active && server.snapshot.status != "connected_to_agent",
         keypadAvailable = canKey, keypadOpen = keypad, manualKeys = keys,
-        audioMenu = audioMenu, audioRoute = audio?.route ?: AudioRoute.Phone, availableRoutes = audio?.available.orEmpty(),
+        audioMenu = audioMenu, audioRoute = audio?.route, availableRoutes = audio?.available.orEmpty(),
         onToggleArs = { voice?.toggleArs?.invoke() },
         onKeypad = { if (keypad || canKey) { keypad = !keypad; keys = ""; audioMenu = false } },
         onAudioMenu = { audioMenu = !audioMenu },

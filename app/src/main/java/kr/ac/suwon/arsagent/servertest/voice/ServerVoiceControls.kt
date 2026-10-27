@@ -20,6 +20,7 @@ import kotlinx.coroutines.delay
 import kr.ac.suwon.arsagent.data.api.CreatedSession
 import kr.ac.suwon.arsagent.servertest.*
 import kr.ac.suwon.arsagent.ui.ArsColors
+import kr.ac.suwon.arsagent.ui.ArsTheme
 
 data class ServerVoiceUi(val status: VoiceStatus, val arsEnabled: Boolean, val arsPlaying: Boolean,
     val arsError: String?, val toggleVoice: () -> Unit,
@@ -69,16 +70,17 @@ fun ServerVoicePanel(state: ServerTestState, voice: ServerVoiceUi) {
 @Composable
 fun ServerVoiceBinding(state: ServerTestState, dispatch: (ServerTestCommand) -> Unit,
     sessions: VoiceSessionRelay, latestState: () -> ServerTestState,
+    communicationAudio: Boolean = false,
     content: @Composable (ServerVoiceUi) -> Unit) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val scope = rememberCoroutineScope()
     val currentDispatch by rememberUpdatedState(dispatch)
     val currentState by rememberUpdatedState(latestState)
-    val player = remember { AndroidArsPlayer(scope) }
+    val player = remember { AndroidArsPlayer(scope, communicationAudio) }
     val voice = remember {
         lateinit var owner: VoiceCoordinator
-        val device = AndroidSpeechDevice(context) { owner.deviceError(it) }
+        val device = AndroidSpeechDevice(context, communicationAudio) { owner.deviceError(it) }
         owner = VoiceCoordinator(device, { currentDispatch(it) }, suppressArs = player::mute,
             latestState = { currentState() })
         owner
@@ -89,15 +91,19 @@ fun ServerVoiceBinding(state: ServerTestState, dispatch: (ServerTestCommand) -> 
     var consent by remember { mutableStateOf(false) }
     var disclosed by remember { mutableStateOf(false) }
     var visible by remember { mutableStateOf(lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) }
+    val activation = remember { VoiceActivation({ voice.enable(true) }, voice::listenGoal) }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted && visible) voice.enable(true)
-        else voice.deviceError("음성 입력을 사용하려면 마이크 권한을 허용해 주세요. 글자 입력은 계속 사용할 수 있어요.")
+        if (granted && visible) activation.grant()
+        else {
+            activation.cancel()
+            if (visible) voice.deviceError("음성 입력을 사용하려면 마이크 권한을 허용해 주세요. 글자 입력은 계속 사용할 수 있어요.")
+        }
     }
     val enable = {
         if (visible) {
-            if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) voice.enable(true)
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) activation.grant()
             else permission.launch(Manifest.permission.RECORD_AUDIO)
-        }
+        } else activation.cancel()
     }
     DisposableEffect(lifecycle, sessions, voice, player) {
         sessions.observe { value ->
@@ -105,11 +111,11 @@ fun ServerVoiceBinding(state: ServerTestState, dispatch: (ServerTestCommand) -> 
         }
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_STOP) {
-                visible = false; consent = false; voice.foreground(false); player.stop()
+                visible = false; consent = false; activation.cancel(); voice.foreground(false); player.stop()
             } else if (event == Lifecycle.Event.ON_START) { visible = true; voice.foreground(true) }
         }
         lifecycle.addObserver(observer)
-        onDispose { sessions.observe(null); lifecycle.removeObserver(observer); player.close(); voice.close() }
+        onDispose { activation.cancel(); sessions.observe(null); lifecycle.removeObserver(observer); player.close(); voice.close() }
     }
     SideEffect {
         voice.update(state)
@@ -123,16 +129,19 @@ fun ServerVoiceBinding(state: ServerTestState, dispatch: (ServerTestCommand) -> 
     }
     content(ServerVoiceUi(status, audio.enabled, audio.playing, audio.error,
         toggleVoice = {
-            if (status.enabled) voice.enable(false)
-            else if (disclosed) enable() else consent = true
-        }, goal = voice::listenGoal, answer = voice::listenAnswer, cancelInput = voice::cancelInput,
+            if (status.enabled) { activation.cancel(); voice.enable(false) }
+            else { activation.requestEnable(); if (disclosed) enable() else consent = true }
+        }, goal = { result ->
+            if (status.enabled) voice.listenGoal(result)
+            else { activation.requestGoal(result); if (disclosed) enable() else consent = true }
+        }, answer = voice::listenAnswer, cancelInput = { activation.cancel(); consent = false; voice.cancelInput() },
         toggleArs = {
             if (audio.enabled) player.stop()
             else if (visible && state.active && state.snapshot.status != "connected_to_agent") session?.let(player::start)
         }))
-    if (consent) AlertDialog(onDismissRequest = { consent = false },
+    if (consent) ArsTheme { AlertDialog(onDismissRequest = { consent = false; activation.cancel() },
         title = { Text("Agent와 음성으로 대화할까요?") },
         text = { Text("마이크 음성을 글자로 바꿔 Agent에게 전달해요. 기기의 음성 인식 서비스에 따라 음성이 외부 서버로 전송될 수 있어요. 기관이나 상담원에게 내 목소리를 보내지 않아요. 개인정보와 중요한 선택은 화면에서 입력해 주세요.") },
         confirmButton = { TextButton({ consent = false; disclosed = true; enable() }) { Text("허용하고 켜기") } },
-        dismissButton = { TextButton({ consent = false }) { Text("취소") } })
+        dismissButton = { TextButton({ consent = false; activation.cancel() }) { Text("취소") } }) }
 }

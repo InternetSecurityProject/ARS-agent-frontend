@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.test.*
 import kr.ac.suwon.arsagent.data.api.*
 import kr.ac.suwon.arsagent.servertest.*
+import kr.ac.suwon.arsagent.servertest.voice.*
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -136,6 +137,53 @@ class LiveCallOwnerTest {
         assertEquals(1, api.actions.size)
         owner.dispatch(ServerTestCommand.Respond("secure-1", "123456")); runCurrent()
         assertTrue(api.actions.last() is SessionAction.SecureInput)
+    }
+
+    @Test fun recognizedPurposeNeverDialsAndQuestionSpeechUsesTheSameLiveOwner() = runCase { owner, api ->
+        val speech = Speech()
+        val voice = VoiceCoordinator(speech, owner::dispatch, latestState = { owner.server.state.value })
+        owner.begin("131"); voice.enable(true); voice.listenGoal(owner::editGoal)
+        speech.answer!!.invoke("날씨 조회")
+        runCurrent()
+        assertEquals("날씨 조회", owner.entry.value?.goal)
+        assertTrue(api.targets.isEmpty())
+        owner.prepare(); owner.confirm("fake-test-key"); runCurrent()
+        voice.sessionChanged("test-session")
+        val request = UserRequest("spoken-question", "clarification", "어느 지역인가요?", "2099-01-01T00:00:00Z")
+        api.events.emit(SessionEvent.InputRequested("now", request)); runCurrent()
+        voice.update(owner.server.state.value)
+        assertEquals("어느 지역인가요?", speech.text)
+        speech.done!!.invoke()
+        val lateResult = speech.answer!!
+        lateResult("수원"); lateResult("다른 지역"); runCurrent()
+        assertEquals(listOf(SessionAction.Answer("spoken-question", "수원")), api.actions)
+        voice.close()
+    }
+
+    @Test fun candidateChoiceWinsAgainstLateSpeechEvenBeforeVoiceRecomposition() = runCase { owner, api ->
+        owner.begin("131"); owner.editGoal("조회"); owner.prepare(); owner.confirm("fake-test-key"); runCurrent()
+        val request = UserRequest("speech-race", "clarification", "업무 선택", "2099-01-01T00:00:00Z",
+            options = listOf(MenuOption("3", "잔액 조회")))
+        api.events.emit(SessionEvent.InputRequested("now", request)); runCurrent()
+        val speech = Speech()
+        val voice = VoiceCoordinator(speech, owner::dispatch, latestState = { owner.server.state.value })
+        voice.update(owner.server.state.value); voice.enable(true); speech.done!!.invoke()
+        owner.dispatch(ServerTestCommand.Respond("speech-race", "3", true))
+        speech.answer!!.invoke("잔액 조회"); runCurrent()
+        assertEquals(listOf(SessionAction.Select("speech-race", "3")), api.actions)
+        voice.foreground(false); speech.answer!!.invoke("서울"); runCurrent()
+        assertEquals(1, api.actions.size)
+        voice.close()
+    }
+
+    private class Speech : SpeechDevice {
+        var text = ""
+        var done: (() -> Unit)? = null
+        var answer: ((String) -> Unit)? = null
+        override fun speak(text: String, onDone: () -> Unit) { this.text = text; done = onDone }
+        override fun listen(onResult: (String) -> Unit, onError: (String) -> Unit) { answer = onResult }
+        override fun stop() = Unit
+        override fun close() = Unit
     }
 }
 
